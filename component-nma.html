@@ -438,7 +438,8 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
   // ===== CORE cNMA ALGORITHM =====
   // Additive component model: theta_{t1 vs t2} = sum(beta_c * (B_{t1,c} - B_{t2,c}))
   // where B is binary design matrix (treatment x component)
-  // Fitted via weighted least squares: beta = (X'WX)^{-1} X'Wy
+  // Fixed-effect: WLS with W_i = 1/v_i
+  // Random-effects: DerSimonian-Laird tau² estimation, W*_i = 1/(v_i + tau²)
 
   function runComponentNMA() {
     var comps = appState.comparisons;
@@ -468,12 +469,11 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     appState.treatments = Object.keys(treatSet).sort();
 
     // 3. Build the per-comparison contrast matrix X (n x p)
-    // X[i,c] = indicator(component c in treat1[i]) - indicator(component c in treat2[i])
     var n = comps.length;
     var p = components.length;
     var X = matCreate(n, p);
     var y = matCreate(n, 1);
-    var W = [];
+    var vi = []; // sampling variances
 
     for (var i = 0; i < n; i++) {
       var c1 = parseComponents(comps[i].treat1, sep);
@@ -484,32 +484,53 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
         X[i][j] = inT1 - inT2;
       }
       y[i][0] = comps[i].effect;
-      var v = comps[i].se * comps[i].se;
-      W[i] = v > 0 ? 1 / v : 0;
+      vi[i] = comps[i].se * comps[i].se;
     }
 
     // 4. Store design matrix for display
     appState.designMatrix = { X: X, components: components };
 
-    // 5. WLS: beta = (X'WX)^{-1} X'Wy
-    var Wmat = matDiag(W);
-    var Xt = matTranspose(X);
-    var XtW = matMul(Xt, Wmat);
-    var XtWX = matMul(XtW, X);
-    var XtWy = matMul(XtW, y);
+    // 5. Fixed-effect WLS first (needed for DL tau² estimation)
+    var W_fe = vi.map(function(v) { return v > 0 ? 1 / v : 0; });
+    var feResult = fitWLS(X, y, W_fe, n, p);
 
-    // Solve
-    var beta = matSolve(XtWX, XtWy);
+    // 6. DerSimonian-Laird tau² estimation
+    // Q = sum(w_i * (y_i - X_i * beta_fe)^2)
+    var yHat_fe = matMul(X, feResult.beta);
+    var Q = 0;
+    var sumW = 0, sumW2 = 0;
+    for (var i = 0; i < n; i++) {
+      var resid = y[i][0] - yHat_fe[i][0];
+      Q += W_fe[i] * resid * resid;
+      sumW += W_fe[i];
+      sumW2 += W_fe[i] * W_fe[i];
+    }
+    var dfQ = n - p;
+    var C = sumW - sumW2 / sumW;
+    var tau2 = dfQ > 0 && C > 0 ? Math.max(0, (Q - dfQ) / C) : 0;
 
-    // Variance-covariance: Var(beta) = (X'WX)^{-1}
-    var vcov = matInverse(XtWX);
+    // I² = max(0, (Q - df) / Q * 100)
+    var I2 = Q > 0 ? Math.max(0, (Q - dfQ) / Q * 100) : 0;
 
-    // 6. Results
+    // 7. Random-effects WLS with W*_i = 1/(v_i + tau²)
+    var W_re = vi.map(function(v) { return (v + tau2) > 0 ? 1 / (v + tau2) : 0; });
+    var reResult = fitWLS(X, y, W_re, n, p);
+
+    // 8. Q-test for additive model fit (using RE residuals)
+    var yHat_re = matMul(X, reResult.beta);
+    var Q_re = 0;
+    for (var i = 0; i < n; i++) {
+      var resid = y[i][0] - yHat_re[i][0];
+      Q_re += W_re[i] * resid * resid;
+    }
+    var qPval = dfQ > 0 ? 1 - chi2CDF(Q_re, dfQ) : 1;
+
+    // 9. Component results from RE model
     var zCrit = normalQuantile(0.975);
     var componentResults = [];
     for (var j = 0; j < p; j++) {
-      var est = beta[j][0];
-      var se = Math.sqrt(Math.max(0, vcov[j][j]));
+      var est = reResult.beta[j][0];
+      var se = Math.sqrt(Math.max(0, reResult.vcov[j][j]));
       var z = se > 0 ? est / se : 0;
       var pval = 2 * (1 - normalCDF(Math.abs(z)));
       componentResults.push({
@@ -523,18 +544,16 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       });
     }
 
-    // 7. Model fit: residuals
-    var yHat = matMul(X, beta);
-    var residSS = 0;
-    for (var i = 0; i < n; i++) {
-      var resid = y[i][0] - yHat[i][0];
-      residSS += W[i] * resid * resid;
+    // 10. FE component results for comparison
+    var feComponents = [];
+    for (var j = 0; j < p; j++) {
+      var est = feResult.beta[j][0];
+      var se = Math.sqrt(Math.max(0, feResult.vcov[j][j]));
+      feComponents.push({ component: components[j], effect: est, se: se,
+        ciLo: est - zCrit * se, ciHi: est + zCrit * se });
     }
-    var df = n - p;
-    var qStat = residSS;
-    var qPval = df > 0 ? 1 - chi2CDF(qStat, df) : 1;
 
-    // 8. Treatment rankings (predicted effects of all observed treatments vs reference)
+    // 11. Treatment rankings from RE model
     var rankings = [];
     for (var t = 0; t < appState.treatments.length; t++) {
       var treat = appState.treatments[t];
@@ -542,26 +561,12 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       var pred = 0;
       var predVar = 0;
       for (var j = 0; j < p; j++) {
-        if (tComps.indexOf(components[j]) >= 0) {
-          pred += beta[j][0];
-          predVar += vcov[j][j];
-          // Add covariances
-          for (var k = 0; k < p; k++) {
-            if (k !== j && tComps.indexOf(components[k]) >= 0) {
-              predVar += vcov[j][k]; // count each pair once (double counting is correct for var of sum)
-            }
-          }
-        }
-      }
-      // Fix: var of sum includes each covariance once (j,k) and once (k,j) so we're OK
-      // Actually predVar is overcounting - let's compute correctly
-      predVar = 0;
-      for (var j = 0; j < p; j++) {
         for (var k = 0; k < p; k++) {
           if (tComps.indexOf(components[j]) >= 0 && tComps.indexOf(components[k]) >= 0) {
-            predVar += vcov[j][k];
+            predVar += reResult.vcov[j][k];
           }
         }
+        if (tComps.indexOf(components[j]) >= 0) pred += reResult.beta[j][0];
       }
       var predSE = Math.sqrt(Math.max(0, predVar));
       rankings.push({
@@ -574,15 +579,28 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
         isRef: isReference(treat)
       });
     }
-    rankings.sort(function(a, b) { return a.effect - b.effect; }); // most negative = most beneficial
+    rankings.sort(function(a, b) { return a.effect - b.effect; });
 
     return {
       components: componentResults,
+      feComponents: feComponents,
       rankings: rankings,
-      modelFit: { Q: qStat, df: df, pval: qPval, n: n, p: p },
-      beta: beta,
-      vcov: vcov
+      modelFit: { Q: Q, Q_re: Q_re, df: dfQ, pval: qPval, n: n, p: p, tau2: tau2, I2: I2 },
+      beta: reResult.beta,
+      vcov: reResult.vcov
     };
+  }
+
+  // Weighted least squares helper: beta = (X'WX)^{-1} X'Wy
+  function fitWLS(X, y, W, n, p) {
+    var Wmat = matDiag(W);
+    var Xt = matTranspose(X);
+    var XtW = matMul(Xt, Wmat);
+    var XtWX = matMul(XtW, X);
+    var XtWy = matMul(XtW, y);
+    var beta = matSolve(XtWX, XtWy);
+    var vcov = matInverse(XtWX);
+    return { beta: beta, vcov: vcov };
   }
 
   // Chi-squared CDF approximation (Wilson-Hilferty)
@@ -784,8 +802,11 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     var mf = res.modelFit;
     $('modelFit').innerHTML =
       '<p style="font-size:0.88rem;">Comparisons: <strong>' + mf.n + '</strong> | Components: <strong>' + mf.p + '</strong> | Residual df: <strong>' + mf.df + '</strong></p>' +
-      '<p style="font-size:0.88rem;">Q-statistic (goodness of fit): <strong>' + fmtNum(mf.Q, 2) + '</strong> (p = ' + fmtP(mf.pval) + ')</p>' +
-      (mf.pval < 0.05 ? '<p style="color:var(--amber); font-size:0.85rem;">Note: Significant Q suggests the additive model may not fully explain the data. Consider interaction terms or model misspecification.</p>' : '<p style="color:var(--green); font-size:0.85rem;">Additive model fits adequately (Q not significant).</p>');
+      '<p style="font-size:0.88rem;">Heterogeneity: <strong>tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + '</strong> | <strong>I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%</strong></p>' +
+      '<p style="font-size:0.88rem;">Q-statistic (fixed-effect): <strong>' + fmtNum(mf.Q, 2) + '</strong> (df = ' + mf.df + ', p = ' + fmtP(mf.df > 0 ? 1 - chi2CDF(mf.Q, mf.df) : 1) + ')</p>' +
+      '<p style="font-size:0.88rem;">Q-statistic (additive model fit, RE): <strong>' + fmtNum(mf.Q_re, 2) + '</strong> (p = ' + fmtP(mf.pval) + ')</p>' +
+      (mf.tau2 > 0 ? '<p style="color:var(--amber); font-size:0.85rem;">Random-effects model applied (tau' + String.fromCharCode(178) + ' > 0). Component effects account for between-study heterogeneity.</p>' : '<p style="color:var(--green); font-size:0.85rem;">No between-study heterogeneity detected (tau' + String.fromCharCode(178) + ' = 0). Fixed-effect and random-effects models coincide.</p>') +
+      (mf.pval < 0.05 ? '<p style="color:var(--red); font-size:0.85rem;">Warning: Significant residual Q suggests the additive model may not fully explain the data. Consider interaction terms.</p>' : '');
 
     // Rankings
     var rhtml = '';
@@ -876,11 +897,13 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     // Methods text
     var nComps = res.modelFit.n;
     var nComponents = res.modelFit.p;
-    var methods = 'Component network meta-analysis was conducted using an additive model (Welton et al. 2009; Rucker et al. 2020). ' +
+    var mf = res.modelFit;
+    var methods = 'Component network meta-analysis was conducted using an additive random-effects model (Welton et al. 2009; Rucker et al. 2020). ' +
       'Complex interventions were decomposed into ' + nComponents + ' distinct components based on treatment labels. ' +
       'The additive model assumes that the effect of a multi-component intervention equals the sum of its individual component effects. ' +
-      'Component effects were estimated using weighted least squares from ' + nComps + ' pairwise comparisons. ' +
-      'The goodness of fit was assessed using the Q-statistic (Q = ' + fmtNum(res.modelFit.Q, 2) + ', df = ' + res.modelFit.df + ', p = ' + fmtP(res.modelFit.pval) + ').';
+      'Between-study heterogeneity was estimated using the DerSimonian-Laird method (tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + ', I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%). ' +
+      'Component effects were estimated using random-effects weighted least squares from ' + nComps + ' pairwise comparisons. ' +
+      'The goodness of fit of the additive model was assessed using the Q-statistic (Q = ' + fmtNum(mf.Q_re, 2) + ', df = ' + mf.df + ', p = ' + fmtP(mf.pval) + ').';
 
     var methodsEl = $('methodsText');
     var copyBtn = methodsEl.querySelector('.copy-btn');

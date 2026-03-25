@@ -159,6 +159,10 @@ class ComponentNMATests(unittest.TestCase):
         fit = self.driver.find_element(By.ID, 'modelFit')
         self.assertIn('Q-statistic', fit.text)
         self.assertIn('24', fit.text)  # 24 comparisons
+        # Verify random-effects heterogeneity metrics are displayed
+        self.assertIn('tau', fit.text)
+        self.assertIn('I', fit.text)
+        self.assertIn('Heterogeneity', fit.text)
 
     def test_16_treatment_rankings(self):
         self._load_smoking()
