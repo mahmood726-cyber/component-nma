@@ -194,6 +194,16 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     </div>
     <p style="font-size:0.8rem; color:var(--text-secondary);">Example: "CBT+Exercise+Pharmacotherapy" is split into 3 components: CBT, Exercise, Pharmacotherapy. "Placebo" and "Control" are treated as no active components (reference).</p>
   </div>
+
+  <div class="card">
+    <div class="card-title">Model Options</div>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.88rem; color:var(--text-primary);">
+        <input type="checkbox" id="includeInteractions" style="width:auto; cursor:pointer;"> Include pairwise component interactions
+      </label>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.4rem;">When enabled, the model adds interaction terms (Component_A x Component_B) to test whether combinations produce synergistic or antagonistic effects beyond the additive model. Requires sufficient data (k > p + number of interactions).</p>
+  </div>
 </div>
 
 <!-- ===== TAB 2: NETWORK ===== -->
@@ -468,31 +478,61 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     }
     appState.treatments = Object.keys(treatSet).sort();
 
-    // 3. Build the per-comparison contrast matrix X (n x p)
+    // 3. Build the per-comparison contrast matrix X (n x p) + optional interactions
+    var includeInt = $('includeInteractions') && $('includeInteractions').checked;
     var n = comps.length;
     var p = components.length;
-    var X = matCreate(n, p);
+
+    // Generate interaction pairs
+    var interactions = [];
+    if (includeInt && p >= 2) {
+      for (var a = 0; a < p; a++) {
+        for (var b = a + 1; b < p; b++) {
+          interactions.push([a, b, components[a] + ' x ' + components[b]]);
+        }
+      }
+    }
+    var pTotal = p + interactions.length;
+
+    // Check identifiability: need n > pTotal
+    if (pTotal >= n) {
+      interactions = []; // fall back to additive if not enough data
+      pTotal = p;
+    }
+
+    var allLabels = components.slice();
+    for (var ix = 0; ix < interactions.length; ix++) allLabels.push(interactions[ix][2]);
+
+    var X = matCreate(n, pTotal);
     var y = matCreate(n, 1);
     var vi = []; // sampling variances
 
     for (var i = 0; i < n; i++) {
       var c1 = parseComponents(comps[i].treat1, sep);
       var c2 = parseComponents(comps[i].treat2, sep);
+      // Main effects
       for (var j = 0; j < p; j++) {
         var inT1 = c1.indexOf(components[j]) >= 0 ? 1 : 0;
         var inT2 = c2.indexOf(components[j]) >= 0 ? 1 : 0;
         X[i][j] = inT1 - inT2;
+      }
+      // Interaction terms: product of contrasts
+      for (var ix = 0; ix < interactions.length; ix++) {
+        var a = interactions[ix][0], b = interactions[ix][1];
+        var intT1 = (c1.indexOf(components[a]) >= 0 && c1.indexOf(components[b]) >= 0) ? 1 : 0;
+        var intT2 = (c2.indexOf(components[a]) >= 0 && c2.indexOf(components[b]) >= 0) ? 1 : 0;
+        X[i][p + ix] = intT1 - intT2;
       }
       y[i][0] = comps[i].effect;
       vi[i] = comps[i].se * comps[i].se;
     }
 
     // 4. Store design matrix for display
-    appState.designMatrix = { X: X, components: components };
+    appState.designMatrix = { X: X, components: allLabels, interactions: interactions };
 
     // 5. Fixed-effect WLS first (needed for DL tau² estimation)
     var W_fe = vi.map(function(v) { return v > 0 ? 1 / v : 0; });
-    var feResult = fitWLS(X, y, W_fe, n, p);
+    var feResult = fitWLS(X, y, W_fe, n, pTotal);
 
     // 6. DerSimonian-Laird tau² estimation
     // Q = sum(w_i * (y_i - X_i * beta_fe)^2)
@@ -505,7 +545,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       sumW += W_fe[i];
       sumW2 += W_fe[i] * W_fe[i];
     }
-    var dfQ = n - p;
+    var dfQ = n - pTotal;
     var C = sumW - sumW2 / sumW;
     var tau2 = dfQ > 0 && C > 0 ? Math.max(0, (Q - dfQ) / C) : 0;
 
@@ -514,7 +554,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
 
     // 7. Random-effects WLS with W*_i = 1/(v_i + tau²)
     var W_re = vi.map(function(v) { return (v + tau2) > 0 ? 1 / (v + tau2) : 0; });
-    var reResult = fitWLS(X, y, W_re, n, p);
+    var reResult = fitWLS(X, y, W_re, n, pTotal);
 
     // 8. Q-test for additive model fit (using RE residuals)
     var yHat_re = matMul(X, reResult.beta);
@@ -525,48 +565,58 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     }
     var qPval = dfQ > 0 ? 1 - chi2CDF(Q_re, dfQ) : 1;
 
-    // 9. Component results from RE model
+    // 9. Component + interaction results from RE model
     var zCrit = normalQuantile(0.975);
     var componentResults = [];
-    for (var j = 0; j < p; j++) {
+    for (var j = 0; j < pTotal; j++) {
       var est = reResult.beta[j][0];
       var se = Math.sqrt(Math.max(0, reResult.vcov[j][j]));
       var z = se > 0 ? est / se : 0;
       var pval = 2 * (1 - normalCDF(Math.abs(z)));
       componentResults.push({
-        component: components[j],
+        component: allLabels[j],
         effect: est,
         se: se,
         ciLo: est - zCrit * se,
         ciHi: est + zCrit * se,
         z: z,
-        p: pval
+        p: pval,
+        isInteraction: j >= p
       });
     }
 
     // 10. FE component results for comparison
     var feComponents = [];
-    for (var j = 0; j < p; j++) {
+    for (var j = 0; j < pTotal; j++) {
       var est = feResult.beta[j][0];
       var se = Math.sqrt(Math.max(0, feResult.vcov[j][j]));
-      feComponents.push({ component: components[j], effect: est, se: se,
+      feComponents.push({ component: allLabels[j], effect: est, se: se,
         ciLo: est - zCrit * se, ciHi: est + zCrit * se });
     }
 
-    // 11. Treatment rankings from RE model
+    // 11. Treatment rankings from RE model (includes interaction effects)
     var rankings = [];
     for (var t = 0; t < appState.treatments.length; t++) {
       var treat = appState.treatments[t];
       var tComps = parseComponents(treat, sep);
+      // Build indicator vector for this treatment (main + interactions)
+      var indicator = [];
+      for (var j = 0; j < p; j++) {
+        indicator.push(tComps.indexOf(components[j]) >= 0 ? 1 : 0);
+      }
+      for (var ix = 0; ix < interactions.length; ix++) {
+        var a = interactions[ix][0], b = interactions[ix][1];
+        indicator.push((indicator[a] === 1 && indicator[b] === 1) ? 1 : 0);
+      }
       var pred = 0;
       var predVar = 0;
-      for (var j = 0; j < p; j++) {
-        for (var k = 0; k < p; k++) {
-          if (tComps.indexOf(components[j]) >= 0 && tComps.indexOf(components[k]) >= 0) {
+      for (var j = 0; j < pTotal; j++) {
+        if (indicator[j] === 1) pred += reResult.beta[j][0];
+        for (var k = 0; k < pTotal; k++) {
+          if (indicator[j] === 1 && indicator[k] === 1) {
             predVar += reResult.vcov[j][k];
           }
         }
-        if (tComps.indexOf(components[j]) >= 0) pred += reResult.beta[j][0];
       }
       var predSE = Math.sqrt(Math.max(0, predVar));
       rankings.push({
@@ -585,7 +635,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       components: componentResults,
       feComponents: feComponents,
       rankings: rankings,
-      modelFit: { Q: Q, Q_re: Q_re, df: dfQ, pval: qPval, n: n, p: p, tau2: tau2, I2: I2 },
+      modelFit: { Q: Q, Q_re: Q_re, df: dfQ, pval: qPval, n: n, p: p, pTotal: pTotal, nInteractions: interactions.length, tau2: tau2, I2: I2 },
       beta: reResult.beta,
       vcov: reResult.vcov
     };
@@ -801,7 +851,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     // Model fit
     var mf = res.modelFit;
     $('modelFit').innerHTML =
-      '<p style="font-size:0.88rem;">Comparisons: <strong>' + mf.n + '</strong> | Components: <strong>' + mf.p + '</strong> | Residual df: <strong>' + mf.df + '</strong></p>' +
+      '<p style="font-size:0.88rem;">Comparisons: <strong>' + mf.n + '</strong> | Components: <strong>' + mf.p + '</strong>' + (mf.nInteractions > 0 ? ' | Interactions: <strong>' + mf.nInteractions + '</strong>' : '') + ' | Parameters: <strong>' + mf.pTotal + '</strong> | Residual df: <strong>' + mf.df + '</strong></p>' +
       '<p style="font-size:0.88rem;">Heterogeneity: <strong>tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + '</strong> | <strong>I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%</strong></p>' +
       '<p style="font-size:0.88rem;">Q-statistic (fixed-effect): <strong>' + fmtNum(mf.Q, 2) + '</strong> (df = ' + mf.df + ', p = ' + fmtP(mf.df > 0 ? 1 - chi2CDF(mf.Q, mf.df) : 1) + ')</p>' +
       '<p style="font-size:0.88rem;">Q-statistic (additive model fit, RE): <strong>' + fmtNum(mf.Q_re, 2) + '</strong> (p = ' + fmtP(mf.pval) + ')</p>' +
