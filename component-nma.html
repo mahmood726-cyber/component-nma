@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Component NMA — Component Network Meta-Analysis</title>
+<style>
+/* ===== CSS VARIABLES ===== */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-card: #ffffff;
+  --bg-hero: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #adb5bd;
+  --border-color: #dee2e6;
+  --border-light: #e9ecef;
+
+  --green: #27ae60; --green-bg: rgba(39,174,96,0.1);
+  --amber: #f39c12; --amber-bg: rgba(243,156,18,0.1);
+  --red: #e74c3c; --red-bg: rgba(231,76,60,0.1);
+  --blue: #2980b9; --purple: #8e44ad;
+  --teal: #16a085; --teal-light: #1abc9c;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+  --radius: 8px; --radius-lg: 12px;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #121212; --bg-secondary: #1e1e1e; --bg-card: #252525;
+  --bg-hero: linear-gradient(135deg, #0d0d1a 0%, #111827 50%, #0a1628 100%);
+  --text-primary: #e4e4e7; --text-secondary: #a1a1aa; --text-muted: #71717a;
+  --border-color: #3f3f46; --border-light: #2d2d33;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3); --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; min-height: 100vh; }
+
+.hero { background: var(--bg-hero); padding: 1.5rem 2rem 1.2rem; text-align: center; position: relative; }
+.hero-title { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 0.2rem; }
+.hero-subtitle { font-size: 0.9rem; color: rgba(255,255,255,0.65); }
+.theme-toggle { position: absolute; top: 1rem; right: 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 0.35rem 0.7rem; border-radius: var(--radius); cursor: pointer; font-size: 0.8rem; }
+.theme-toggle:hover { background: rgba(255,255,255,0.2); }
+.theme-toggle:focus { outline: 2px solid var(--teal-light); }
+
+.tab-bar { display: flex; background: var(--bg-secondary); border-bottom: 2px solid var(--border-color); padding: 0 1rem; overflow-x: auto; }
+.tab-btn { padding: 0.65rem 1.3rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn:focus { outline: 2px solid var(--teal-light); outline-offset: -2px; }
+.tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); font-weight: 600; }
+
+.tab-panel { display: none; padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+.tab-panel.active { display: block; }
+
+.card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; box-shadow: var(--shadow-sm); }
+.card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.75rem; }
+
+label { display: block; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.2rem; }
+input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 0.45rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--radius); font-size: 0.88rem; font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(41,128,185,0.15); }
+textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); font-size: 0.78rem; }
+
+.form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.65rem; margin-bottom: 0.75rem; }
+.form-group { display: flex; flex-direction: column; }
+
+.btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 1rem; border: 1px solid transparent; border-radius: var(--radius); font-size: 0.88rem; font-weight: 500; cursor: pointer; font-family: var(--font-sans); }
+.btn:focus { outline: 2px solid var(--teal-light); outline-offset: 2px; }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: #2471a3; }
+.btn-teal { background: var(--teal); color: #fff; font-weight: 600; }
+.btn-teal:hover { background: #128f76; }
+.btn-outline { background: transparent; color: var(--text-primary); border-color: var(--border-color); }
+.btn-outline:hover { background: var(--bg-secondary); }
+.btn-danger { background: var(--red); color: #fff; padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+.btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.data-table th { background: var(--bg-secondary); padding: 0.5rem 0.6rem; text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border-color); font-size: 0.78rem; }
+.data-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border-light); }
+.data-table tr:hover { background: var(--bg-secondary); }
+
+.svg-container { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+.svg-container svg { display: block; width: 100%; height: auto; }
+
+.component-tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.72rem; font-weight: 600; margin: 0.1rem; }
+
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+
+.example-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.example-btn { flex: 1; min-width: 180px; padding: 0.75rem; background: var(--bg-secondary); border: 2px solid var(--border-color); border-radius: var(--radius-lg); cursor: pointer; text-align: left; font-family: var(--font-sans); }
+.example-btn:hover { border-color: var(--teal); box-shadow: var(--shadow-md); }
+.example-btn:focus { outline: 2px solid var(--teal-light); }
+.example-btn .ex-title { font-weight: 600; font-size: 0.9rem; }
+.example-btn .ex-desc { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.2rem; }
+
+.code-block { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 0.75rem; font-family: var(--font-mono); font-size: 0.78rem; overflow-x: auto; white-space: pre-wrap; position: relative; }
+.copy-btn { position: absolute; top: 0.4rem; right: 0.4rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 0.2rem 0.5rem; font-size: 0.72rem; cursor: pointer; }
+
+@media print {
+  .hero, .tab-bar, .theme-toggle, .btn, button { display: none !important; }
+  .tab-panel { display: block !important; padding: 0; }
+  .card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+</style>
+</head>
+<body>
+
+<header class="hero" role="banner">
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" tabindex="0">Dark Mode</button>
+  <h1 class="hero-title">Component NMA</h1>
+  <p class="hero-subtitle">Component Network Meta-Analysis for Complex Interventions</p>
+</header>
+
+<nav class="tab-bar" role="tablist" aria-label="Main navigation">
+  <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-data" id="tab-data" tabindex="0">1. Data</button>
+  <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-network" id="tab-network" tabindex="-1">2. Network</button>
+  <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-results" id="tab-results" tabindex="-1">3. Results</button>
+  <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-report" id="tab-report" tabindex="-1">4. Report</button>
+</nav>
+
+<!-- ===== TAB 1: DATA ===== -->
+<div class="tab-panel active" role="tabpanel" id="panel-data" aria-labelledby="tab-data">
+  <div class="card">
+    <div class="card-title">Built-in Examples</div>
+    <div class="example-buttons">
+      <button class="example-btn" id="exSmoking" tabindex="0">
+        <div class="ex-title">Smoking Cessation</div>
+        <div class="ex-desc">24 trials, 4 components: self-help, individual counselling, group counselling, pharmacotherapy</div>
+      </button>
+      <button class="example-btn" id="exDepression" tabindex="0">
+        <div class="ex-title">Depression Treatment</div>
+        <div class="ex-desc">18 trials, 5 components: CBT, exercise, pharmacotherapy, psychoeducation, mindfulness</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Manual Data Entry</div>
+    <div class="form-row">
+      <div class="form-group"><label for="studyName">Study</label><input type="text" id="studyName" placeholder="e.g., EAGLES 2016"></div>
+      <div class="form-group"><label for="treat1">Treatment 1</label><input type="text" id="treat1" placeholder="e.g., CBT+Exercise"></div>
+      <div class="form-group"><label for="treat2">Treatment 2</label><input type="text" id="treat2" placeholder="e.g., Placebo"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="effectInput">Effect (log scale)</label><input type="number" id="effectInput" step="0.01" placeholder="-0.35"></div>
+      <div class="form-group"><label for="seInput">Standard Error</label><input type="number" id="seInput" step="0.01" placeholder="0.12"></div>
+      <div class="form-group" style="justify-content:flex-end;"><button class="btn btn-teal" id="addCompBtn" tabindex="0">Add Comparison</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">CSV Import</div>
+    <div class="form-group">
+      <label for="csvInput">Paste CSV (study, treat1, treat2, effect, se):</label>
+      <textarea id="csvInput" placeholder="EAGLES 2016, CBT+Exercise, Placebo, -0.35, 0.12&#10;CALM 2018, CBT, Waitlist, -0.42, 0.15"></textarea>
+    </div>
+    <button class="btn btn-primary btn-sm" id="parseCsvBtn" tabindex="0" style="margin-top:0.5rem;">Parse CSV</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Comparison Data <span id="compCount" style="font-weight:400; color:var(--text-secondary); font-size:0.85rem;"></span></div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="compTable" aria-label="Comparison data">
+        <thead><tr><th>Study</th><th>Treatment 1</th><th>Treatment 2</th><th>Effect</th><th>SE</th><th>Components (T1)</th><th>Components (T2)</th><th></th></tr></thead>
+        <tbody id="compTableBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyData" class="empty-state"><p>No comparisons added. Load an example or enter data manually.</p></div>
+    <div class="btn-group" style="margin-top:0.75rem;" id="dataActions" style="display:none;">
+      <button class="btn btn-teal" id="runBtn" tabindex="0" style="display:none;">Run Component NMA</button>
+      <button class="btn btn-outline btn-sm" id="clearBtn" tabindex="0" style="display:none;">Clear All</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Component Separator</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="separator">Treatment names are split by:</label>
+        <select id="separator">
+          <option value="+">+ (plus sign)</option>
+          <option value=",">, (comma)</option>
+          <option value="/">/ (slash)</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-secondary);">Example: "CBT+Exercise+Pharmacotherapy" is split into 3 components: CBT, Exercise, Pharmacotherapy. "Placebo" and "Control" are treated as no active components (reference).</p>
+  </div>
+</div>
+
+<!-- ===== TAB 2: NETWORK ===== -->
+<div class="tab-panel" role="tabpanel" id="panel-network" aria-labelledby="tab-network">
+  <div id="networkEmpty" class="empty-state"><p>Load data first to see the network.</p></div>
+  <div id="networkContent" style="display:none;">
+    <div class="card">
+      <div class="card-title">Component Network Graph</div>
+      <div class="svg-container" id="networkSvg" aria-label="Component network meta-analysis graph"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Detected Components</div>
+      <div id="componentList"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Design Matrix (B)</div>
+      <div style="overflow-x:auto;"><table class="data-table" id="designMatrix"></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB 3: RESULTS ===== -->
+<div class="tab-panel" role="tabpanel" id="panel-results" aria-labelledby="tab-results">
+  <div id="resultsEmpty" class="empty-state"><p>Run the analysis first.</p></div>
+  <div id="resultsContent" style="display:none;">
+    <div class="card">
+      <div class="card-title">Component Effects (vs Reference)</div>
+      <div class="svg-container" id="forestSvg" aria-label="Component effects forest plot"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Component Effect Estimates</div>
+      <div style="overflow-x:auto;"><table class="data-table" id="resultsTable"><thead><tr><th>Component</th><th>Effect</th><th>SE</th><th>95% CI Lower</th><th>95% CI Upper</th><th>z</th><th>p-value</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Model Fit</div>
+      <div id="modelFit"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Treatment Rankings (by additive component effects)</div>
+      <div style="overflow-x:auto;"><table class="data-table" id="rankTable"><thead><tr><th>Rank</th><th>Treatment</th><th>Components</th><th>Predicted Effect</th><th>95% CI</th></tr></thead><tbody id="rankBody"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB 4: REPORT ===== -->
+<div class="tab-panel" role="tabpanel" id="panel-report" aria-labelledby="tab-report">
+  <div class="card">
+    <div class="card-title">Methods Text</div>
+    <div class="code-block" id="methodsText"><button class="copy-btn" data-target="methodsText" tabindex="0">Copy</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">R Code (netmeta equivalent)</div>
+    <div class="code-block" id="rCode"><button class="copy-btn" data-target="rCode" tabindex="0">Copy</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Export</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="exportCsvBtn" tabindex="0">Export CSV</button>
+      <button class="btn btn-outline" id="exportJsonBtn" tabindex="0">Export JSON</button>
+      <button class="btn btn-outline" id="printReportBtn" tabindex="0">Print</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===========================================================
+   Component NMA — Additive Component Network Meta-Analysis
+   Based on Rücker et al. (2020), Welton et al. (2009)
+   =========================================================== */
+(function() {
+  'use strict';
+
+  function escapeHtml(s) { if (s==null)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  var $ = function(id) { return document.getElementById(id); };
+
+  // ===== NORMAL DISTRIBUTION =====
+  function normalCDF(x) {
+    if (!isFinite(x)) return x > 0 ? 1 : 0;
+    var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+    var sign = x < 0 ? -1 : 1; x = Math.abs(x)/Math.SQRT2;
+    var t = 1.0/(1.0+p*x);
+    var y = 1.0 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+    return 0.5*(1.0+sign*y);
+  }
+  function normalQuantile(p) {
+    if (p<=0) return -Infinity; if (p>=1) return Infinity; if (p===0.5) return 0;
+    var a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+    var b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+    var c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+    var d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+    var pLow=0.02425,pHigh=1-pLow; var q,r;
+    if (p<pLow) { q=Math.sqrt(-2*Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+    else if (p<=pHigh) { q=p-0.5; r=q*q; return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+    else { q=Math.sqrt(-2*Math.log(1-p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  }
+  function fmtNum(v,dp) { if (v==null||!isFinite(v)) return '--'; return v.toFixed(dp!=null?dp:2); }
+  function fmtP(p) { if (p==null||!isFinite(p)) return '--'; if (p<0.001) return '<0.001'; return p.toFixed(3); }
+
+  // ===== MATRIX OPERATIONS (pure JS, no dependencies) =====
+  function matCreate(rows, cols, fill) { var m=[]; for (var i=0;i<rows;i++){m[i]=[]; for(var j=0;j<cols;j++) m[i][j]=fill||0;} return m; }
+  function matTranspose(A) { var r=A.length,c=A[0].length; var T=matCreate(c,r); for(var i=0;i<r;i++) for(var j=0;j<c;j++) T[j][i]=A[i][j]; return T; }
+  function matMul(A,B) { var r=A.length,k=A[0].length,c=B[0].length; var C=matCreate(r,c); for(var i=0;i<r;i++) for(var j=0;j<c;j++) { var s=0; for(var m=0;m<k;m++) s+=A[i][m]*B[m][j]; C[i][j]=s; } return C; }
+  function matDiag(v) { var n=v.length; var D=matCreate(n,n); for(var i=0;i<n;i++) D[i][i]=v[i]; return D; }
+
+  // Solve Ax = b using Gaussian elimination with partial pivoting
+  function matSolve(A, b) {
+    var n = A.length;
+    var aug = matCreate(n, n + 1);
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < n; j++) aug[i][j] = A[i][j];
+      aug[i][n] = b[i][0];
+    }
+    for (var col = 0; col < n; col++) {
+      var maxRow = col; var maxVal = Math.abs(aug[col][col]);
+      for (var row = col + 1; row < n; row++) {
+        if (Math.abs(aug[row][col]) > maxVal) { maxVal = Math.abs(aug[row][col]); maxRow = row; }
+      }
+      if (maxRow !== col) { var tmp = aug[col]; aug[col] = aug[maxRow]; aug[maxRow] = tmp; }
+      if (Math.abs(aug[col][col]) < 1e-14) continue;
+      for (var row = col + 1; row < n; row++) {
+        var factor = aug[row][col] / aug[col][col];
+        for (var j = col; j <= n; j++) aug[row][j] -= factor * aug[col][j];
+      }
+    }
+    var x = matCreate(n, 1);
+    for (var i = n - 1; i >= 0; i--) {
+      var s = aug[i][n];
+      for (var j = i + 1; j < n; j++) s -= aug[i][j] * x[j][0];
+      x[i][0] = Math.abs(aug[i][i]) > 1e-14 ? s / aug[i][i] : 0;
+    }
+    return x;
+  }
+
+  // Matrix inverse using Gauss-Jordan
+  function matInverse(A) {
+    var n = A.length;
+    var aug = matCreate(n, 2 * n);
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < n; j++) aug[i][j] = A[i][j];
+      aug[i][n + i] = 1;
+    }
+    for (var col = 0; col < n; col++) {
+      var maxRow = col; var maxVal = Math.abs(aug[col][col]);
+      for (var row = col + 1; row < n; row++) {
+        if (Math.abs(aug[row][col]) > maxVal) { maxVal = Math.abs(aug[row][col]); maxRow = row; }
+      }
+      if (maxRow !== col) { var tmp = aug[col]; aug[col] = aug[maxRow]; aug[maxRow] = tmp; }
+      var pivot = aug[col][col];
+      if (Math.abs(pivot) < 1e-14) continue;
+      for (var j = 0; j < 2 * n; j++) aug[col][j] /= pivot;
+      for (var row = 0; row < n; row++) {
+        if (row === col) continue;
+        var factor = aug[row][col];
+        for (var j = 0; j < 2 * n; j++) aug[row][j] -= factor * aug[col][j];
+      }
+    }
+    var inv = matCreate(n, n);
+    for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) inv[i][j] = aug[i][n + j];
+    return inv;
+  }
+
+  // ===== COMPONENT PARSING =====
+  var REFERENCE_NAMES = ['placebo', 'control', 'waitlist', 'no treatment', 'usual care', 'sham', 'none'];
+
+  function isReference(name) {
+    return REFERENCE_NAMES.indexOf(name.trim().toLowerCase()) >= 0;
+  }
+
+  function parseComponents(treatName, sep) {
+    if (isReference(treatName)) return [];
+    return treatName.split(sep).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0 && !isReference(s); });
+  }
+
+  // ===== DATA MODEL =====
+  var appState = {
+    comparisons: [],   // [{study, treat1, treat2, effect, se}]
+    components: [],    // unique component names
+    treatments: [],    // unique treatment names
+    designMatrix: null,
+    results: null,
+    separator: '+'
+  };
+
+  // ===== BUILT-IN DATASETS =====
+  var DATASETS = {
+    smoking: {
+      label: 'Smoking Cessation',
+      sep: '+',
+      data: [
+        ['Blondal 1999','Pharmacotherapy','Placebo',-0.63,0.24],
+        ['Campbell 1996','Individual+Pharmacotherapy','Pharmacotherapy',-0.02,0.37],
+        ['Cinciripini 1996','Individual+Pharmacotherapy','Individual',0.14,0.52],
+        ['Fortmann 1995','Self-help+Individual','Self-help',0.02,0.22],
+        ['Garcia 2000','Group+Pharmacotherapy','Group',-0.19,0.28],
+        ['Glover 1996','Pharmacotherapy','Placebo',-0.47,0.31],
+        ['Goldstein 1989','Individual','Placebo',-0.57,0.39],
+        ['Gourlay 1995','Pharmacotherapy','Placebo',-0.38,0.21],
+        ['Hall 1985','Individual','Placebo',-0.48,0.46],
+        ['Hall 1987','Individual+Pharmacotherapy','Placebo',-0.79,0.34],
+        ['Herrera 1995','Individual','Placebo',-0.29,0.33],
+        ['Hjalmarson 1984','Pharmacotherapy','Placebo',-0.70,0.25],
+        ['Hughes 1989','Pharmacotherapy','Placebo',-0.22,0.41],
+        ['Hurt 1994','Pharmacotherapy','Placebo',-0.65,0.18],
+        ['Jorenby 1999','Pharmacotherapy','Placebo',-0.85,0.19],
+        ['Killen 1990','Self-help','Placebo',-0.12,0.35],
+        ['Kornitzer 1995','Pharmacotherapy','Placebo',-0.41,0.26],
+        ['Nakamura 1990','Group','Placebo',-0.41,0.41],
+        ['Puska 1979','Group+Individual','Individual',0.10,0.47],
+        ['Richmond 1993','Self-help','Placebo',0.08,0.27],
+        ['Sachs 1993','Pharmacotherapy','Placebo',-0.52,0.28],
+        ['Schneider 1996','Pharmacotherapy','Placebo',-0.33,0.30],
+        ['Tonnesen 1991','Pharmacotherapy','Placebo',-0.46,0.29],
+        ['Transdermal 1991','Pharmacotherapy','Placebo',-0.48,0.20]
+      ]
+    },
+    depression: {
+      label: 'Depression Treatment',
+      sep: '+',
+      data: [
+        ['CBT-A 2015','CBT','Waitlist',-0.82,0.21],
+        ['CBT-B 2016','CBT+Exercise','Waitlist',-1.15,0.25],
+        ['CBT-C 2017','CBT+Pharmacotherapy','Pharmacotherapy',-0.35,0.18],
+        ['COMBI 2018','CBT+Exercise+Pharmacotherapy','Pharmacotherapy',-0.68,0.22],
+        ['EXER-A 2014','Exercise','Waitlist',-0.52,0.19],
+        ['EXER-B 2016','Exercise+Mindfulness','Exercise',-0.28,0.23],
+        ['MIND-A 2019','Mindfulness','Waitlist',-0.45,0.20],
+        ['MIND-B 2020','Mindfulness+CBT','CBT',-0.18,0.24],
+        ['PHARM-A 2015','Pharmacotherapy','Waitlist',-0.75,0.16],
+        ['PHARM-B 2017','Pharmacotherapy+Exercise','Pharmacotherapy',-0.30,0.20],
+        ['PSYCH-A 2016','Psychoeducation','Waitlist',-0.33,0.22],
+        ['PSYCH-B 2018','Psychoeducation+CBT','CBT',-0.12,0.26],
+        ['PSYCH-C 2019','Psychoeducation+Exercise','Exercise',-0.15,0.24],
+        ['FULL-A 2020','CBT+Exercise+Mindfulness','CBT+Exercise',-0.22,0.27],
+        ['FULL-B 2021','Pharmacotherapy+Mindfulness','Pharmacotherapy',-0.20,0.23],
+        ['HEAD-A 2017','CBT','Pharmacotherapy',-0.08,0.17],
+        ['HEAD-B 2019','Exercise','Pharmacotherapy',0.22,0.19],
+        ['HEAD-C 2020','Mindfulness','Psychoeducation',-0.10,0.25]
+      ]
+    }
+  };
+
+  // ===== CORE cNMA ALGORITHM =====
+  // Additive component model: theta_{t1 vs t2} = sum(beta_c * (B_{t1,c} - B_{t2,c}))
+  // where B is binary design matrix (treatment x component)
+  // Fitted via weighted least squares: beta = (X'WX)^{-1} X'Wy
+
+  function runComponentNMA() {
+    var comps = appState.comparisons;
+    if (comps.length < 2) return null;
+
+    var sep = appState.separator;
+
+    // 1. Identify all unique components (excluding reference treatments)
+    var compSet = {};
+    for (var i = 0; i < comps.length; i++) {
+      var c1 = parseComponents(comps[i].treat1, sep);
+      var c2 = parseComponents(comps[i].treat2, sep);
+      for (var j = 0; j < c1.length; j++) compSet[c1[j]] = true;
+      for (var j = 0; j < c2.length; j++) compSet[c2[j]] = true;
+    }
+    var components = Object.keys(compSet).sort();
+    appState.components = components;
+
+    if (components.length === 0) return null;
+
+    // 2. Identify all unique treatments
+    var treatSet = {};
+    for (var i = 0; i < comps.length; i++) {
+      treatSet[comps[i].treat1] = true;
+      treatSet[comps[i].treat2] = true;
+    }
+    appState.treatments = Object.keys(treatSet).sort();
+
+    // 3. Build the per-comparison contrast matrix X (n x p)
+    // X[i,c] = indicator(component c in treat1[i]) - indicator(component c in treat2[i])
+    var n = comps.length;
+    var p = components.length;
+    var X = matCreate(n, p);
+    var y = matCreate(n, 1);
+    var W = [];
+
+    for (var i = 0; i < n; i++) {
+      var c1 = parseComponents(comps[i].treat1, sep);
+      var c2 = parseComponents(comps[i].treat2, sep);
+      for (var j = 0; j < p; j++) {
+        var inT1 = c1.indexOf(components[j]) >= 0 ? 1 : 0;
+        var inT2 = c2.indexOf(components[j]) >= 0 ? 1 : 0;
+        X[i][j] = inT1 - inT2;
+      }
+      y[i][0] = comps[i].effect;
+      var v = comps[i].se * comps[i].se;
+      W[i] = v > 0 ? 1 / v : 0;
+    }
+
+    // 4. Store design matrix for display
+    appState.designMatrix = { X: X, components: components };
+
+    // 5. WLS: beta = (X'WX)^{-1} X'Wy
+    var Wmat = matDiag(W);
+    var Xt = matTranspose(X);
+    var XtW = matMul(Xt, Wmat);
+    var XtWX = matMul(XtW, X);
+    var XtWy = matMul(XtW, y);
+
+    // Solve
+    var beta = matSolve(XtWX, XtWy);
+
+    // Variance-covariance: Var(beta) = (X'WX)^{-1}
+    var vcov = matInverse(XtWX);
+
+    // 6. Results
+    var zCrit = normalQuantile(0.975);
+    var componentResults = [];
+    for (var j = 0; j < p; j++) {
+      var est = beta[j][0];
+      var se = Math.sqrt(Math.max(0, vcov[j][j]));
+      var z = se > 0 ? est / se : 0;
+      var pval = 2 * (1 - normalCDF(Math.abs(z)));
+      componentResults.push({
+        component: components[j],
+        effect: est,
+        se: se,
+        ciLo: est - zCrit * se,
+        ciHi: est + zCrit * se,
+        z: z,
+        p: pval
+      });
+    }
+
+    // 7. Model fit: residuals
+    var yHat = matMul(X, beta);
+    var residSS = 0;
+    for (var i = 0; i < n; i++) {
+      var resid = y[i][0] - yHat[i][0];
+      residSS += W[i] * resid * resid;
+    }
+    var df = n - p;
+    var qStat = residSS;
+    var qPval = df > 0 ? 1 - chi2CDF(qStat, df) : 1;
+
+    // 8. Treatment rankings (predicted effects of all observed treatments vs reference)
+    var rankings = [];
+    for (var t = 0; t < appState.treatments.length; t++) {
+      var treat = appState.treatments[t];
+      var tComps = parseComponents(treat, sep);
+      var pred = 0;
+      var predVar = 0;
+      for (var j = 0; j < p; j++) {
+        if (tComps.indexOf(components[j]) >= 0) {
+          pred += beta[j][0];
+          predVar += vcov[j][j];
+          // Add covariances
+          for (var k = 0; k < p; k++) {
+            if (k !== j && tComps.indexOf(components[k]) >= 0) {
+              predVar += vcov[j][k]; // count each pair once (double counting is correct for var of sum)
+            }
+          }
+        }
+      }
+      // Fix: var of sum includes each covariance once (j,k) and once (k,j) so we're OK
+      // Actually predVar is overcounting - let's compute correctly
+      predVar = 0;
+      for (var j = 0; j < p; j++) {
+        for (var k = 0; k < p; k++) {
+          if (tComps.indexOf(components[j]) >= 0 && tComps.indexOf(components[k]) >= 0) {
+            predVar += vcov[j][k];
+          }
+        }
+      }
+      var predSE = Math.sqrt(Math.max(0, predVar));
+      rankings.push({
+        treatment: treat,
+        components: tComps,
+        effect: pred,
+        se: predSE,
+        ciLo: pred - zCrit * predSE,
+        ciHi: pred + zCrit * predSE,
+        isRef: isReference(treat)
+      });
+    }
+    rankings.sort(function(a, b) { return a.effect - b.effect; }); // most negative = most beneficial
+
+    return {
+      components: componentResults,
+      rankings: rankings,
+      modelFit: { Q: qStat, df: df, pval: qPval, n: n, p: p },
+      beta: beta,
+      vcov: vcov
+    };
+  }
+
+  // Chi-squared CDF approximation (Wilson-Hilferty)
+  function chi2CDF(x, df) {
+    if (df <= 0 || x < 0) return 0;
+    if (df === 1) return 2 * normalCDF(Math.sqrt(x)) - 1;
+    if (df === 2) return 1 - Math.exp(-x / 2);
+    var z = Math.pow(x / df, 1/3) - (1 - 2 / (9 * df));
+    z /= Math.sqrt(2 / (9 * df));
+    return normalCDF(z);
+  }
+
+  // ===== RENDERING =====
+
+  function renderCompTable() {
+    var tbody = $('compTableBody');
+    var empty = $('emptyData');
+    var count = $('compCount');
+
+    if (appState.comparisons.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      count.textContent = '';
+      $('runBtn').style.display = 'none';
+      $('clearBtn').style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    count.textContent = '(' + appState.comparisons.length + ' comparisons)';
+    $('runBtn').style.display = '';
+    $('clearBtn').style.display = '';
+
+    var sep = appState.separator;
+    var colors = ['#2980b9','#e74c3c','#27ae60','#f39c12','#8e44ad','#1abc9c','#e67e22','#3498db'];
+
+    var html = '';
+    for (var i = 0; i < appState.comparisons.length; i++) {
+      var c = appState.comparisons[i];
+      var c1 = parseComponents(c.treat1, sep);
+      var c2 = parseComponents(c.treat2, sep);
+      html += '<tr>';
+      html += '<td>' + escapeHtml(c.study) + '</td>';
+      html += '<td>' + escapeHtml(c.treat1) + '</td>';
+      html += '<td>' + escapeHtml(c.treat2) + '</td>';
+      html += '<td>' + fmtNum(c.effect, 3) + '</td>';
+      html += '<td>' + fmtNum(c.se, 3) + '</td>';
+      html += '<td>' + c1.map(function(x) { return '<span class="component-tag" style="background:' + colors[c1.indexOf(x)%colors.length] + '22;color:' + colors[c1.indexOf(x)%colors.length] + '">' + escapeHtml(x) + '</span>'; }).join('') + (c1.length===0?'<em style="color:var(--text-muted)">ref</em>':'') + '</td>';
+      html += '<td>' + c2.map(function(x) { return '<span class="component-tag" style="background:' + colors[c2.indexOf(x)%colors.length] + '22;color:' + colors[c2.indexOf(x)%colors.length] + '">' + escapeHtml(x) + '</span>'; }).join('') + (c2.length===0?'<em style="color:var(--text-muted)">ref</em>':'') + '</td>';
+      html += '<td><button class="btn btn-danger" data-delidx="' + i + '" tabindex="0">X</button></td>';
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+
+    var delBtns = tbody.querySelectorAll('[data-delidx]');
+    for (var j = 0; j < delBtns.length; j++) {
+      delBtns[j].addEventListener('click', function() {
+        appState.comparisons.splice(parseInt(this.getAttribute('data-delidx')), 1);
+        renderCompTable();
+      });
+    }
+  }
+
+  function renderNetwork() {
+    if (appState.comparisons.length === 0 || !appState.components || appState.components.length === 0) {
+      $('networkContent').style.display = 'none';
+      $('networkEmpty').style.display = '';
+      return;
+    }
+    $('networkContent').style.display = '';
+    $('networkEmpty').style.display = 'none';
+
+    var comps = appState.components;
+    var colors = ['#2980b9','#e74c3c','#27ae60','#f39c12','#8e44ad','#1abc9c','#e67e22','#3498db','#c0392b','#16a085'];
+
+    // Component list
+    var clHtml = '';
+    for (var i = 0; i < comps.length; i++) {
+      var col = colors[i % colors.length];
+      clHtml += '<span class="component-tag" style="background:' + col + '22;color:' + col + ';font-size:0.85rem;padding:0.25rem 0.7rem;margin:0.2rem;">' + escapeHtml(comps[i]) + '</span>';
+    }
+    $('componentList').innerHTML = clHtml;
+
+    // Design matrix display
+    renderDesignMatrix();
+
+    // Network SVG (circular layout of components, edges = shared comparisons)
+    renderNetworkSVG(comps, colors);
+  }
+
+  function renderDesignMatrix() {
+    var dm = appState.designMatrix;
+    if (!dm) return;
+    var html = '<thead><tr><th>Comparison</th>';
+    for (var j = 0; j < dm.components.length; j++) {
+      html += '<th>' + escapeHtml(dm.components[j]) + '</th>';
+    }
+    html += '</tr></thead><tbody>';
+    for (var i = 0; i < dm.X.length; i++) {
+      var c = appState.comparisons[i];
+      html += '<tr><td style="font-size:0.75rem;">' + escapeHtml(c.treat1) + ' vs ' + escapeHtml(c.treat2) + '</td>';
+      for (var j = 0; j < dm.X[i].length; j++) {
+        var v = dm.X[i][j];
+        var style = v > 0 ? 'color:var(--green);font-weight:700' : v < 0 ? 'color:var(--red);font-weight:700' : 'color:var(--text-muted)';
+        html += '<td style="text-align:center;' + style + '">' + (v > 0 ? '+1' : v < 0 ? '-1' : '0') + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody>';
+    $('designMatrix').innerHTML = html;
+  }
+
+  function renderNetworkSVG(comps, colors) {
+    var W = 500, H = 400;
+    var cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 60;
+    var n = comps.length;
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img">';
+    svg += '<title>Component network graph showing relationships between intervention components</title>';
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    svg += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="' + (dark ? '#252525' : '#fff') + '"/>';
+    svg += '<text x="' + cx + '" y="22" text-anchor="middle" fill="' + (dark ? '#e4e4e7' : '#212529') + '" font-size="13" font-weight="600">Component Network</text>';
+
+    // Position components in a circle
+    var positions = [];
+    for (var i = 0; i < n; i++) {
+      var angle = -Math.PI / 2 + (2 * Math.PI * i / n);
+      positions.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+    }
+
+    // Draw edges (between co-occurring components)
+    var edges = {};
+    var sep = appState.separator;
+    for (var s = 0; s < appState.comparisons.length; s++) {
+      var c1 = parseComponents(appState.comparisons[s].treat1, sep);
+      var c2 = parseComponents(appState.comparisons[s].treat2, sep);
+      var allC = c1.concat(c2);
+      for (var a = 0; a < allC.length; a++) {
+        for (var b = a + 1; b < allC.length; b++) {
+          var key = [comps.indexOf(allC[a]), comps.indexOf(allC[b])].sort().join('-');
+          edges[key] = (edges[key] || 0) + 1;
+        }
+      }
+    }
+    for (var key in edges) {
+      var parts = key.split('-');
+      var i = parseInt(parts[0]), j = parseInt(parts[1]);
+      if (i < 0 || j < 0) continue;
+      var thickness = Math.min(6, 1 + edges[key]);
+      svg += '<line x1="' + positions[i].x.toFixed(1) + '" y1="' + positions[i].y.toFixed(1) + '" x2="' + positions[j].x.toFixed(1) + '" y2="' + positions[j].y.toFixed(1) + '" stroke="' + (dark?'#555':'#ccc') + '" stroke-width="' + thickness + '" opacity="0.6"/>';
+    }
+
+    // Draw nodes
+    for (var i = 0; i < n; i++) {
+      var col = colors[i % colors.length];
+      // Count comparisons involving this component
+      var count = 0;
+      for (var s = 0; s < appState.comparisons.length; s++) {
+        var c1 = parseComponents(appState.comparisons[s].treat1, sep);
+        var c2 = parseComponents(appState.comparisons[s].treat2, sep);
+        if (c1.indexOf(comps[i]) >= 0 || c2.indexOf(comps[i]) >= 0) count++;
+      }
+      var nodeR = Math.max(18, Math.min(35, 12 + count * 3));
+      svg += '<circle cx="' + positions[i].x.toFixed(1) + '" cy="' + positions[i].y.toFixed(1) + '" r="' + nodeR + '" fill="' + col + '" opacity="0.85" stroke="#fff" stroke-width="2"/>';
+      svg += '<text x="' + positions[i].x.toFixed(1) + '" y="' + (positions[i].y + nodeR + 16).toFixed(1) + '" text-anchor="middle" fill="' + (dark?'#ccc':'#333') + '" font-size="11" font-weight="600">' + escapeHtml(comps[i]) + '</text>';
+      svg += '<text x="' + positions[i].x.toFixed(1) + '" y="' + (positions[i].y + 4).toFixed(1) + '" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">' + count + '</text>';
+    }
+
+    svg += '</svg>';
+    $('networkSvg').innerHTML = svg;
+  }
+
+  function renderResults() {
+    var res = appState.results;
+    if (!res) {
+      $('resultsContent').style.display = 'none';
+      $('resultsEmpty').style.display = '';
+      return;
+    }
+    $('resultsContent').style.display = '';
+    $('resultsEmpty').style.display = 'none';
+
+    // Component effects table
+    var html = '';
+    for (var i = 0; i < res.components.length; i++) {
+      var c = res.components[i];
+      html += '<tr>';
+      html += '<td style="font-weight:600;">' + escapeHtml(c.component) + '</td>';
+      html += '<td>' + fmtNum(c.effect, 3) + '</td>';
+      html += '<td>' + fmtNum(c.se, 3) + '</td>';
+      html += '<td>' + fmtNum(c.ciLo, 3) + '</td>';
+      html += '<td>' + fmtNum(c.ciHi, 3) + '</td>';
+      html += '<td>' + fmtNum(c.z, 2) + '</td>';
+      html += '<td>' + fmtP(c.p) + '</td>';
+      html += '</tr>';
+    }
+    $('resultsBody').innerHTML = html;
+
+    // Model fit
+    var mf = res.modelFit;
+    $('modelFit').innerHTML =
+      '<p style="font-size:0.88rem;">Comparisons: <strong>' + mf.n + '</strong> | Components: <strong>' + mf.p + '</strong> | Residual df: <strong>' + mf.df + '</strong></p>' +
+      '<p style="font-size:0.88rem;">Q-statistic (goodness of fit): <strong>' + fmtNum(mf.Q, 2) + '</strong> (p = ' + fmtP(mf.pval) + ')</p>' +
+      (mf.pval < 0.05 ? '<p style="color:var(--amber); font-size:0.85rem;">Note: Significant Q suggests the additive model may not fully explain the data. Consider interaction terms or model misspecification.</p>' : '<p style="color:var(--green); font-size:0.85rem;">Additive model fits adequately (Q not significant).</p>');
+
+    // Rankings
+    var rhtml = '';
+    for (var i = 0; i < res.rankings.length; i++) {
+      var r = res.rankings[i];
+      rhtml += '<tr' + (r.isRef ? ' style="color:var(--text-muted);"' : '') + '>';
+      rhtml += '<td>' + (i + 1) + '</td>';
+      rhtml += '<td style="font-weight:500;">' + escapeHtml(r.treatment) + '</td>';
+      rhtml += '<td>' + (r.components.length > 0 ? r.components.map(function(x){return escapeHtml(x);}).join(' + ') : '<em>reference</em>') + '</td>';
+      rhtml += '<td>' + fmtNum(r.effect, 3) + '</td>';
+      rhtml += '<td>' + fmtNum(r.ciLo, 3) + ' to ' + fmtNum(r.ciHi, 3) + '</td>';
+      rhtml += '</tr>';
+    }
+    $('rankBody').innerHTML = rhtml;
+
+    // Forest plot
+    renderForestPlot(res);
+  }
+
+  function renderForestPlot(res) {
+    var comps = res.components;
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var bg = dark ? '#252525' : '#fff';
+    var text = dark ? '#e4e4e7' : '#212529';
+    var grid = dark ? '#3f3f46' : '#e9ecef';
+    var muted = dark ? '#71717a' : '#adb5bd';
+    var colors = ['#2980b9','#e74c3c','#27ae60','#f39c12','#8e44ad','#1abc9c','#e67e22','#3498db'];
+
+    var K = comps.length;
+    var rowH = Math.max(32, Math.min(40, 350 / K));
+    var W = 700, H = K * rowH + 80;
+    var margin = { top: 35, right: 20, bottom: 40, left: 180 };
+    var plotW = W - margin.left - margin.right;
+
+    // Determine x-range
+    var allVals = [];
+    for (var i = 0; i < K; i++) { allVals.push(comps[i].ciLo, comps[i].ciHi, comps[i].effect); }
+    var xMin = Math.min.apply(null, allVals);
+    var xMax = Math.max.apply(null, allVals);
+    var xPad = (xMax - xMin) * 0.2;
+    xMin -= xPad; xMax += xPad;
+    if (xMin > -0.1) xMin = -0.1;
+    if (xMax < 0.1) xMax = 0.1;
+
+    var xScale = function(v) { return margin.left + ((v - xMin) / (xMax - xMin)) * plotW; };
+    var yCenter = function(i) { return margin.top + i * rowH + rowH / 2; };
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img">';
+    svg += '<title>Forest plot of component effects versus reference</title>';
+    svg += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="' + bg + '"/>';
+    svg += '<text x="' + (W / 2) + '" y="22" text-anchor="middle" fill="' + text + '" font-size="13" font-weight="600">Component Effects (vs Reference)</text>';
+
+    // Null line
+    var nullX = xScale(0);
+    svg += '<line x1="' + nullX + '" y1="' + (margin.top - 5) + '" x2="' + nullX + '" y2="' + (margin.top + K * rowH + 5) + '" stroke="' + muted + '" stroke-width="1.5" stroke-dasharray="4,3"/>';
+
+    for (var i = 0; i < K; i++) {
+      var c = comps[i];
+      var yc = yCenter(i);
+      var col = colors[i % colors.length];
+
+      // Row background
+      if (i % 2 === 0) svg += '<rect x="' + margin.left + '" y="' + (yc - rowH / 2) + '" width="' + plotW + '" height="' + rowH + '" fill="' + (dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)') + '"/>';
+
+      // Label
+      svg += '<text x="' + (margin.left - 8) + '" y="' + (yc + 4) + '" text-anchor="end" fill="' + text + '" font-size="11" font-weight="600">' + escapeHtml(c.component) + '</text>';
+
+      // CI whisker
+      svg += '<line x1="' + xScale(c.ciLo).toFixed(1) + '" y1="' + yc + '" x2="' + xScale(c.ciHi).toFixed(1) + '" y2="' + yc + '" stroke="' + col + '" stroke-width="2"/>';
+
+      // Point
+      svg += '<circle cx="' + xScale(c.effect).toFixed(1) + '" cy="' + yc + '" r="6" fill="' + col + '" stroke="#fff" stroke-width="1.5"/>';
+
+      // Effect text
+      svg += '<text x="' + (margin.left + plotW + 5) + '" y="' + (yc + 4) + '" fill="' + muted + '" font-size="9">' + fmtNum(c.effect, 2) + ' (' + fmtNum(c.ciLo, 2) + ', ' + fmtNum(c.ciHi, 2) + ')</text>';
+    }
+
+    // X-axis
+    svg += '<text x="' + (W / 2) + '" y="' + (H - 5) + '" text-anchor="middle" fill="' + muted + '" font-size="11">Effect Size (log scale)</text>';
+    svg += '</svg>';
+    $('forestSvg').innerHTML = svg;
+  }
+
+  function renderReport() {
+    var res = appState.results;
+    if (!res) return;
+
+    // Methods text
+    var nComps = res.modelFit.n;
+    var nComponents = res.modelFit.p;
+    var methods = 'Component network meta-analysis was conducted using an additive model (Welton et al. 2009; Rucker et al. 2020). ' +
+      'Complex interventions were decomposed into ' + nComponents + ' distinct components based on treatment labels. ' +
+      'The additive model assumes that the effect of a multi-component intervention equals the sum of its individual component effects. ' +
+      'Component effects were estimated using weighted least squares from ' + nComps + ' pairwise comparisons. ' +
+      'The goodness of fit was assessed using the Q-statistic (Q = ' + fmtNum(res.modelFit.Q, 2) + ', df = ' + res.modelFit.df + ', p = ' + fmtP(res.modelFit.pval) + ').';
+
+    var methodsEl = $('methodsText');
+    var copyBtn = methodsEl.querySelector('.copy-btn');
+    methodsEl.textContent = methods;
+    methodsEl.appendChild(copyBtn);
+
+    // R code
+    var rLines = [];
+    rLines.push('# Component NMA using netmeta (R equivalent)');
+    rLines.push('library(netmeta)');
+    rLines.push('');
+    rLines.push('# Data');
+    rLines.push('dat <- data.frame(');
+    rLines.push('  study = c(' + appState.comparisons.map(function(c){return '"'+c.study.replace(/"/g,'\\"')+'"';}).join(', ') + '),');
+    rLines.push('  treat1 = c(' + appState.comparisons.map(function(c){return '"'+c.treat1.replace(/"/g,'\\"')+'"';}).join(', ') + '),');
+    rLines.push('  treat2 = c(' + appState.comparisons.map(function(c){return '"'+c.treat2.replace(/"/g,'\\"')+'"';}).join(', ') + '),');
+    rLines.push('  TE = c(' + appState.comparisons.map(function(c){return c.effect.toFixed(4);}).join(', ') + '),');
+    rLines.push('  seTE = c(' + appState.comparisons.map(function(c){return c.se.toFixed(4);}).join(', ') + ')');
+    rLines.push(')');
+    rLines.push('');
+    rLines.push('# Standard NMA');
+    rLines.push('nma <- netmeta(TE, seTE, treat1, treat2, studlab = study,');
+    rLines.push('               data = dat, sm = "MD", common = FALSE, random = TRUE)');
+    rLines.push('');
+    rLines.push('# Component NMA');
+    rLines.push('cnma <- netcomb(nma, sep.comps = "+")');
+    rLines.push('print(cnma)');
+    rLines.push('forest(cnma)');
+
+    var rBlock = $('rCode');
+    var rCopyBtn = rBlock.querySelector('.copy-btn');
+    rBlock.textContent = rLines.join('\n');
+    rBlock.appendChild(rCopyBtn);
+  }
+
+  // ===== EVENT HANDLERS =====
+
+  function loadDataset(key) {
+    var ds = DATASETS[key];
+    if (!ds) return;
+    appState.comparisons = [];
+    appState.separator = ds.sep;
+    $('separator').value = ds.sep;
+    for (var i = 0; i < ds.data.length; i++) {
+      var d = ds.data[i];
+      appState.comparisons.push({ study: d[0], treat1: d[1], treat2: d[2], effect: d[3], se: d[4] });
+    }
+    renderCompTable();
+  }
+
+  function init() {
+    // Tabs
+    var tabs = document.querySelectorAll('.tab-btn');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].addEventListener('click', function() {
+        var name = this.id.replace('tab-', '');
+        var allTabs = document.querySelectorAll('.tab-btn');
+        var allPanels = document.querySelectorAll('.tab-panel');
+        for (var j = 0; j < allTabs.length; j++) {
+          var tn = allTabs[j].id.replace('tab-', '');
+          allTabs[j].classList.toggle('active', tn === name);
+          allTabs[j].setAttribute('aria-selected', tn === name ? 'true' : 'false');
+          allTabs[j].setAttribute('tabindex', tn === name ? '0' : '-1');
+        }
+        for (var j = 0; j < allPanels.length; j++) {
+          allPanels[j].classList.toggle('active', allPanels[j].id === 'panel-' + name);
+        }
+      });
+      tabs[i].addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+        var tabList = Array.from(document.querySelectorAll('.tab-btn'));
+        var idx = tabList.indexOf(this);
+        if (e.key === 'ArrowRight') { e.preventDefault(); var next = tabList[(idx+1)%tabList.length]; next.click(); next.focus(); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); var prev = tabList[(idx-1+tabList.length)%tabList.length]; prev.click(); prev.focus(); }
+      });
+    }
+
+    // Theme
+    var themeBtn = $('themeToggle');
+    try { if (localStorage.getItem('cnma-theme')==='dark') { document.documentElement.setAttribute('data-theme','dark'); themeBtn.textContent='Light Mode'; } } catch(e){}
+    themeBtn.addEventListener('click', function() {
+      var next = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      themeBtn.textContent = next==='dark' ? 'Light Mode' : 'Dark Mode';
+      try{localStorage.setItem('cnma-theme',next);}catch(e){}
+      if (appState.results) { renderNetwork(); renderResults(); }
+    });
+
+    // Examples
+    $('exSmoking').addEventListener('click', function() { loadDataset('smoking'); });
+    $('exDepression').addEventListener('click', function() { loadDataset('depression'); });
+
+    // Separator change
+    $('separator').addEventListener('change', function() { appState.separator = this.value; renderCompTable(); });
+
+    // Add comparison
+    $('addCompBtn').addEventListener('click', function() {
+      var study = $('studyName').value.trim();
+      var t1 = $('treat1').value.trim();
+      var t2 = $('treat2').value.trim();
+      var eff = parseFloat($('effectInput').value);
+      var se = parseFloat($('seInput').value);
+      if (!study || !t1 || !t2 || !isFinite(eff) || !isFinite(se) || se <= 0) {
+        alert('Please fill all fields with valid values.');
+        return;
+      }
+      appState.comparisons.push({ study: study, treat1: t1, treat2: t2, effect: eff, se: se });
+      renderCompTable();
+      $('studyName').value = ''; $('treat1').value = ''; $('treat2').value = ''; $('effectInput').value = ''; $('seInput').value = '';
+    });
+
+    // CSV parse
+    $('parseCsvBtn').addEventListener('click', function() {
+      var raw = $('csvInput').value.trim();
+      if (!raw) { alert('Paste CSV data first.'); return; }
+      var lines = raw.split('\n');
+      var added = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line || line.startsWith('#')) continue;
+        var parts = line.split(',').map(function(p){return p.trim();});
+        if (parts.length < 5) continue;
+        var eff = parseFloat(parts[3]);
+        var se = parseFloat(parts[4]);
+        if (isFinite(eff) && isFinite(se) && se > 0) {
+          appState.comparisons.push({ study: parts[0], treat1: parts[1], treat2: parts[2], effect: eff, se: se });
+          added++;
+        }
+      }
+      if (added > 0) { renderCompTable(); $('csvInput').value = ''; }
+    });
+
+    // Run analysis
+    $('runBtn').addEventListener('click', function() {
+      appState.results = runComponentNMA();
+      if (appState.results) {
+        renderNetwork();
+        renderResults();
+        renderReport();
+        // Switch to results tab
+        document.querySelectorAll('.tab-btn')[2].click();
+      }
+    });
+
+    // Clear
+    $('clearBtn').addEventListener('click', function() {
+      appState.comparisons = [];
+      appState.results = null;
+      renderCompTable();
+      $('networkContent').style.display = 'none';
+      $('networkEmpty').style.display = '';
+      $('resultsContent').style.display = 'none';
+      $('resultsEmpty').style.display = '';
+    });
+
+    // Export
+    $('exportCsvBtn').addEventListener('click', function() {
+      if (!appState.results) { alert('Run analysis first.'); return; }
+      var lines = ['Component,Effect,SE,CI_Lower,CI_Upper,z,p'];
+      for (var i = 0; i < appState.results.components.length; i++) {
+        var c = appState.results.components[i];
+        lines.push([c.component,c.effect.toFixed(4),c.se.toFixed(4),c.ciLo.toFixed(4),c.ciHi.toFixed(4),c.z.toFixed(3),c.p.toFixed(4)].join(','));
+      }
+      var blob = new Blob([lines.join('\n')], {type:'text/csv'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = 'component_nma_results.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    });
+
+    $('exportJsonBtn').addEventListener('click', function() {
+      if (!appState.results) { alert('Run analysis first.'); return; }
+      var blob = new Blob([JSON.stringify(appState.results, null, 2)], {type:'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = 'component_nma_results.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    });
+
+    $('printReportBtn').addEventListener('click', function() { window.print(); });
+
+    // Copy buttons
+    document.addEventListener('click', function(e) {
+      if (e.target.classList.contains('copy-btn')) {
+        var targetId = e.target.getAttribute('data-target');
+        var el = $(targetId);
+        if (el) {
+          var clone = el.cloneNode(true);
+          var btns = clone.querySelectorAll('.copy-btn');
+          for (var b = 0; b < btns.length; b++) btns[b].remove();
+          navigator.clipboard.writeText(clone.textContent).then(function() {
+            var orig = e.target.textContent; e.target.textContent = 'Copied!';
+            setTimeout(function(){e.target.textContent=orig;},1500);
+          });
+        }
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>
