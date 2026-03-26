@@ -1,8 +1,13 @@
 # Component NMA: A Browser-Based Tool for Component Network Meta-Analysis of Complex Interventions
 
-[AUTHOR_PLACEHOLDER]
+Mahmood Ahmad^1^
 
-**Corresponding author:** [AUTHOR_PLACEHOLDER]
+^1^ Royal Free Hospital, London, United Kingdom
+
+Correspondence: Mahmood Ahmad, mahmood.ahmad2@nhs.net
+ORCID: 0009-0003-7781-4478
+
+**Corresponding author:** Mahmood Ahmad, mahmood.ahmad2@nhs.net
 
 **Target journal:** Research Synthesis Methods
 
@@ -197,7 +202,7 @@ Planned extensions include: (a) interaction terms for selected component pairs, 
 
 Component NMA provides an accessible, dependency-free, browser-based implementation of additive component network meta-analysis. By lowering the technical barrier to cNMA, the tool supports the growing recognition that complex interventions require analytical methods capable of identifying their active ingredients. The combination of immediate usability, transparent computation, and built-in cross-validation with R code positions Component NMA as a practical complement to established statistical software for evidence synthesis of complex interventions.
 
-The tool is freely available as a single HTML file at [URL_PLACEHOLDER] and can be used offline without installation.
+The tool is freely available as a single HTML file at https://github.com/mahmood726-cyber/component-nma and can be used offline without installation.
 
 ---
 
