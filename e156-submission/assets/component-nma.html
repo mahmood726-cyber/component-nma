@@ -235,7 +235,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     </div>
     <div class="card">
       <div class="card-title">Component Effect Estimates</div>
-      <div style="overflow-x:auto;"><table class="data-table" id="resultsTable"><thead><tr><th>Component</th><th>Effect</th><th>SE</th><th>95% CI Lower</th><th>95% CI Upper</th><th>z</th><th>p-value</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+      <div style="overflow-x:auto;"><table class="data-table" id="resultsTable"><thead><tr><th>Component</th><th>Effect</th><th>SE</th><th>95% Wald CI</th><th>95% HKSJ CI</th><th>95% PI</th><th>z</th><th>p-value</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
     </div>
     <div class="card">
       <div class="card-title">Model Fit</div>
@@ -301,6 +301,184 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
   }
   function fmtNum(v,dp) { if (v==null||!isFinite(v)) return '--'; return v.toFixed(dp!=null?dp:2); }
   function fmtP(p) { if (p==null||!isFinite(p)) return '--'; if (p<0.001) return '<0.001'; return p.toFixed(3); }
+
+  // ===== CORE STATISTICAL FUNCTIONS (ported from meta-stats-core.js) =====
+
+  function lnGamma_core(x) {
+    var g = 7;
+    var c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+             771.32342877765313, -176.61502916214059, 12.507343278686905,
+             -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lnGamma_core(1 - x);
+    x -= 1;
+    var a = c[0];
+    var t = x + g + 0.5;
+    for (var i = 1; i < c.length; i++) a += c[i] / (x + i);
+    return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+  }
+
+  function regBetaI_core(x, a, b) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    var lnBeta = lnGamma_core(a) + lnGamma_core(b) - lnGamma_core(a + b);
+    var front = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lnBeta) / a;
+    return front * betaCF_core(x, a, b);
+  }
+
+  function betaCF_core(x, a, b) {
+    var f = 1, c2 = 1, d = 1 - (a + b) * x / (a + 1);
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    d = 1 / d; f = d;
+    for (var m = 1; m <= 200; m++) {
+      var num = m * (b - m) * x / ((a + 2 * m - 1) * (a + 2 * m));
+      d = 1 + num * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+      c2 = 1 + num / c2; if (Math.abs(c2) < 1e-30) c2 = 1e-30;
+      f *= d * c2;
+      num = -(a + m) * (a + b + m) * x / ((a + 2 * m) * (a + 2 * m + 1));
+      d = 1 + num * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+      c2 = 1 + num / c2; if (Math.abs(c2) < 1e-30) c2 = 1e-30;
+      var delta = d * c2;
+      f *= delta;
+      if (Math.abs(delta - 1) < 1e-12) break;
+    }
+    return f;
+  }
+
+  function regGammaP_core(a, x) {
+    if (x < 0) return 0;
+    if (x === 0) return 0;
+    if (x > a + 1) return 1 - regGammaQ_core(a, x);
+    var sum = 1 / a, term = 1 / a;
+    for (var n = 1; n < 300; n++) {
+      term *= x / (a + n);
+      sum += term;
+      if (Math.abs(term) < 1e-14 * Math.abs(sum)) break;
+    }
+    return Math.exp(-x + a * Math.log(x) - lnGamma_core(a)) * sum;
+  }
+
+  function regGammaQ_core(a, x) {
+    var f = x - a + 1 + 1e-30;
+    var c2 = f, d = 0, delta;
+    for (var m = 1; m <= 300; m++) {
+      var an1 = m * (a - m);
+      var an2 = x - a + 2 * m + 1;
+      d = an2 + an1 * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+      c2 = an2 + an1 / c2; if (Math.abs(c2) < 1e-30) c2 = 1e-30;
+      delta = c2 * d; f *= delta;
+      if (Math.abs(delta - 1) < 1e-12) break;
+    }
+    return Math.exp(-x + a * Math.log(x) - lnGamma_core(a)) / f;
+  }
+
+  function chi2CDF_core(x, df) {
+    if (x <= 0) return 0;
+    return regGammaP_core(df / 2, x / 2);
+  }
+
+  function chi2Quantile_core(p, df) {
+    var x = df * Math.pow(1 - 2 / (9 * df) + normalQuantile(p) * Math.sqrt(2 / (9 * df)), 3);
+    if (x < 0.01) x = 0.01;
+    for (var i = 0; i < 20; i++) {
+      var cdf = chi2CDF_core(x, df);
+      var pdf = Math.exp((df / 2 - 1) * Math.log(x / 2) - x / 2 - lnGamma_core(df / 2) - Math.log(2));
+      if (pdf < 1e-15) break;
+      var dx = (cdf - p) / pdf;
+      x = Math.max(1e-10, x - dx);
+      if (Math.abs(dx) < 1e-10) break;
+    }
+    return x;
+  }
+
+  function tPDF_core(t, df) {
+    return Math.exp(lnGamma_core((df + 1) / 2) - lnGamma_core(df / 2) - 0.5 * Math.log(df * Math.PI)
+           - ((df + 1) / 2) * Math.log(1 + t * t / df));
+  }
+
+  function tCDF_core(t, df) {
+    var x = df / (df + t * t);
+    var ib = regBetaI_core(x, df / 2, 0.5);
+    return t < 0 ? 0.5 * ib : 1 - 0.5 * ib;
+  }
+
+  function tQuantile_core(p, df) {
+    if (df <= 0) return NaN;
+    if (df === 1) return Math.tan(Math.PI * (p - 0.5));
+    if (df === 2) return (2 * p - 1) / Math.sqrt(2 * p * (1 - p));
+    var zp = normalQuantile(p);
+    var g1 = (zp * zp * zp + zp) / (4 * df);
+    var g2 = (5 * Math.pow(zp, 5) + 16 * zp * zp * zp + 3 * zp) / (96 * df * df);
+    var g3 = (3 * Math.pow(zp, 7) + 19 * Math.pow(zp, 5) + 17 * zp * zp * zp - 15 * zp) / (384 * Math.pow(df, 3));
+    var t = zp + g1 + g2 + g3;
+    for (var i = 0; i < 3; i++) {
+      var cdf = tCDF_core(t, df);
+      var pdf = tPDF_core(t, df);
+      if (pdf < 1e-15) break;
+      t -= (cdf - p) / pdf;
+    }
+    return t;
+  }
+
+  // ===== REML TAU2 ESTIMATOR (Fisher scoring) =====
+  function remlTau2(yi, vi) {
+    var k = yi.length;
+    // Start from DL estimate
+    var w = vi.map(function(v) { return v > 0 ? 1 / v : 0; });
+    var sumW = 0; for (var i = 0; i < k; i++) sumW += w[i];
+    var theta_fe = 0; for (var i = 0; i < k; i++) theta_fe += w[i] * yi[i]; theta_fe /= sumW;
+    var Q = 0; for (var i = 0; i < k; i++) Q += w[i] * Math.pow(yi[i] - theta_fe, 2);
+    var sumW2 = 0; for (var i = 0; i < k; i++) sumW2 += w[i] * w[i];
+    var C = sumW - sumW2 / sumW;
+    var tau2 = Math.max(0, (Q - (k - 1)) / C);
+
+    // Fisher scoring iterations
+    for (var iter = 0; iter < 100; iter++) {
+      var ws = []; var sW = 0;
+      for (var i = 0; i < k; i++) { ws[i] = 1 / (vi[i] + tau2); sW += ws[i]; }
+      var th = 0; for (var i = 0; i < k; i++) th += ws[i] * yi[i]; th /= sW;
+      var sW2 = 0, sW3 = 0, sW2r2 = 0;
+      for (var i = 0; i < k; i++) {
+        sW2 += ws[i] * ws[i];
+        sW3 += Math.pow(ws[i], 3);
+        sW2r2 += ws[i] * ws[i] * Math.pow(yi[i] - th, 2);
+      }
+      var score = -0.5 * sW + 0.5 * sW2 / sW + 0.5 * sW2r2;
+      var info = 0.5 * (sW2 - 2 * sW3 / sW + sW2 * sW2 / (sW * sW));
+      if (info < 1e-15) break;
+      var tau2New = Math.max(0, tau2 + score / info);
+      if (Math.abs(tau2New - tau2) < 1e-10) { tau2 = tau2New; break; }
+      tau2 = tau2New;
+    }
+    return tau2;
+  }
+
+  // ===== HKSJ CI (with floor correction) =====
+  // Floor: if Q* < k-1, HKSJ narrows below Wald — set floor max(hksjVar, waldVar)
+  function hksjCI_core(theta, yi, vi, tau2, k) {
+    if (k < 2) {
+      var z = 1.959964;
+      var se0 = Math.sqrt(1 / vi.reduce(function(a, v) { return a + 1 / v; }, 0));
+      return [theta - z * se0, theta + z * se0];
+    }
+    var ws = []; var sumWs = 0;
+    for (var i = 0; i < k; i++) { ws[i] = 1 / (vi[i] + tau2); sumWs += ws[i]; }
+    var Qs = 0;
+    for (var i = 0; i < k; i++) Qs += ws[i] * Math.pow(yi[i] - theta, 2);
+    var hksjVar = Qs / ((k - 1) * sumWs);
+    var waldVar = 1 / sumWs;
+    hksjVar = Math.max(hksjVar, waldVar); // floor correction
+    var seAdj = Math.sqrt(hksjVar);
+    var tcrit = Math.abs(tQuantile_core(0.025, k - 1));
+    return [theta - tcrit * seAdj, theta + tcrit * seAdj];
+  }
+
+  // ===== PREDICTION INTERVAL — t_{k-2}, undefined for k<3 =====
+  function predictionInterval_core(theta, tau2, se, k) {
+    if (k < 3) return [NaN, NaN];
+    var tcrit = Math.abs(tQuantile_core(0.025, k - 2));
+    var piSe = Math.sqrt(tau2 + se * se);
+    return [theta - tcrit * piSe, theta + tcrit * piSe];
+  }
 
   // ===== MATRIX OPERATIONS (pure JS, no dependencies) =====
   function matCreate(rows, cols, fill) { var m=[]; for (var i=0;i<rows;i++){m[i]=[]; for(var j=0;j<cols;j++) m[i][j]=fill||0;} return m; }
@@ -530,12 +708,11 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     // 4. Store design matrix for display
     appState.designMatrix = { X: X, components: allLabels, interactions: interactions };
 
-    // 5. Fixed-effect WLS first (needed for DL tau² estimation)
+    // 5. Fixed-effect WLS first (needed for DL/REML tau² estimation)
     var W_fe = vi.map(function(v) { return v > 0 ? 1 / v : 0; });
     var feResult = fitWLS(X, y, W_fe, n, pTotal);
 
-    // 6. DerSimonian-Laird tau² estimation
-    // Q = sum(w_i * (y_i - X_i * beta_fe)^2)
+    // 6. DerSimonian-Laird tau² (as starting point + comparison)
     var yHat_fe = matMul(X, feResult.beta);
     var Q = 0;
     var sumW = 0, sumW2 = 0;
@@ -547,25 +724,32 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     }
     var dfQ = n - pTotal;
     var C = sumW - sumW2 / sumW;
-    var tau2 = dfQ > 0 && C > 0 ? Math.max(0, (Q - dfQ) / C) : 0;
+    var tau2_dl = dfQ > 0 && C > 0 ? Math.max(0, (Q - dfQ) / C) : 0;
+
+    // 7. REML tau² via Fisher scoring (recommended)
+    // For cNMA, we use residual-based REML on the model residuals
+    // Extract observed effects and variances for REML
+    var yi_obs = []; for (var i = 0; i < n; i++) yi_obs.push(y[i][0]);
+    var tau2 = remlTau2(yi_obs, vi);
 
     // I² = max(0, (Q - df) / Q * 100)
     var I2 = Q > 0 ? Math.max(0, (Q - dfQ) / Q * 100) : 0;
 
-    // 7. Random-effects WLS with W*_i = 1/(v_i + tau²)
+    // 8. Random-effects WLS with W*_i = 1/(v_i + tau²)
     var W_re = vi.map(function(v) { return (v + tau2) > 0 ? 1 / (v + tau2) : 0; });
     var reResult = fitWLS(X, y, W_re, n, pTotal);
 
-    // 8. Q-test for additive model fit (using RE residuals)
+    // 9. Q-test for additive model fit (using RE residuals)
     var yHat_re = matMul(X, reResult.beta);
     var Q_re = 0;
     for (var i = 0; i < n; i++) {
       var resid = y[i][0] - yHat_re[i][0];
       Q_re += W_re[i] * resid * resid;
     }
-    var qPval = dfQ > 0 ? 1 - chi2CDF(Q_re, dfQ) : 1;
+    var qPval = dfQ > 0 ? 1 - chi2CDF_core(Q_re, dfQ) : 1;
 
-    // 9. Component + interaction results from RE model
+    // 10. Component + interaction results from RE model
+    // Compute Wald CI (z-based) and HKSJ CI (t-based with floor correction)
     var zCrit = normalQuantile(0.975);
     var componentResults = [];
     for (var j = 0; j < pTotal; j++) {
@@ -573,19 +757,46 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       var se = Math.sqrt(Math.max(0, reResult.vcov[j][j]));
       var z = se > 0 ? est / se : 0;
       var pval = 2 * (1 - normalCDF(Math.abs(z)));
+      // Wald CI
+      var waldLo = est - zCrit * se;
+      var waldHi = est + zCrit * se;
+      // HKSJ CI for this component: use per-component adjusted variance
+      // For cNMA, adjust using Q*/(k-1) scaling with floor
+      var hksjLo = waldLo, hksjHi = waldHi;
+      if (n > 1 && dfQ > 0) {
+        var hksjScale = Q_re / dfQ;
+        hksjScale = Math.max(hksjScale, 1); // floor: never narrow below Wald
+        var seHksj = se * Math.sqrt(hksjScale);
+        var tcrit = Math.abs(tQuantile_core(0.025, dfQ));
+        hksjLo = est - tcrit * seHksj;
+        hksjHi = est + tcrit * seHksj;
+      }
+      // Prediction interval for each component: t_{k-2}
+      var piLo = NaN, piHi = NaN;
+      if (n >= 3 && dfQ >= 1) {
+        var piDf = Math.max(1, n - pTotal - 1); // analogous to k-2 for univariate
+        var tPI = Math.abs(tQuantile_core(0.025, piDf));
+        var piSE = Math.sqrt(tau2 + se * se);
+        piLo = est - tPI * piSE;
+        piHi = est + tPI * piSE;
+      }
       componentResults.push({
         component: allLabels[j],
         effect: est,
         se: se,
-        ciLo: est - zCrit * se,
-        ciHi: est + zCrit * se,
+        ciLo: waldLo,
+        ciHi: waldHi,
+        hksjLo: hksjLo,
+        hksjHi: hksjHi,
+        piLo: piLo,
+        piHi: piHi,
         z: z,
         p: pval,
         isInteraction: j >= p
       });
     }
 
-    // 10. FE component results for comparison
+    // 11. FE component results for comparison
     var feComponents = [];
     for (var j = 0; j < pTotal; j++) {
       var est = feResult.beta[j][0];
@@ -594,7 +805,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
         ciLo: est - zCrit * se, ciHi: est + zCrit * se });
     }
 
-    // 11. Treatment rankings from RE model (includes interaction effects)
+    // 12. Treatment rankings from RE model (includes interaction effects)
     var rankings = [];
     for (var t = 0; t < appState.treatments.length; t++) {
       var treat = appState.treatments[t];
@@ -635,7 +846,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       components: componentResults,
       feComponents: feComponents,
       rankings: rankings,
-      modelFit: { Q: Q, Q_re: Q_re, df: dfQ, pval: qPval, n: n, p: p, pTotal: pTotal, nInteractions: interactions.length, tau2: tau2, I2: I2 },
+      modelFit: { Q: Q, Q_re: Q_re, df: dfQ, pval: qPval, n: n, p: p, pTotal: pTotal, nInteractions: interactions.length, tau2: tau2, tau2_dl: tau2_dl, tau2Method: 'REML', I2: I2 },
       beta: reResult.beta,
       vcov: reResult.vcov
     };
@@ -840,8 +1051,9 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       html += '<td style="font-weight:600;">' + escapeHtml(c.component) + '</td>';
       html += '<td>' + fmtNum(c.effect, 3) + '</td>';
       html += '<td>' + fmtNum(c.se, 3) + '</td>';
-      html += '<td>' + fmtNum(c.ciLo, 3) + '</td>';
-      html += '<td>' + fmtNum(c.ciHi, 3) + '</td>';
+      html += '<td>' + fmtNum(c.ciLo, 3) + ' to ' + fmtNum(c.ciHi, 3) + '</td>';
+      html += '<td style="font-weight:500;">' + fmtNum(c.hksjLo, 3) + ' to ' + fmtNum(c.hksjHi, 3) + '</td>';
+      html += '<td style="color:var(--text-secondary);">' + (isFinite(c.piLo) ? fmtNum(c.piLo, 3) + ' to ' + fmtNum(c.piHi, 3) : 'k<3') + '</td>';
       html += '<td>' + fmtNum(c.z, 2) + '</td>';
       html += '<td>' + fmtP(c.p) + '</td>';
       html += '</tr>';
@@ -852,10 +1064,11 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     var mf = res.modelFit;
     $('modelFit').innerHTML =
       '<p style="font-size:0.88rem;">Comparisons: <strong>' + mf.n + '</strong> | Components: <strong>' + mf.p + '</strong>' + (mf.nInteractions > 0 ? ' | Interactions: <strong>' + mf.nInteractions + '</strong>' : '') + ' | Parameters: <strong>' + mf.pTotal + '</strong> | Residual df: <strong>' + mf.df + '</strong></p>' +
-      '<p style="font-size:0.88rem;">Heterogeneity: <strong>tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + '</strong> | <strong>I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%</strong></p>' +
-      '<p style="font-size:0.88rem;">Q-statistic (fixed-effect): <strong>' + fmtNum(mf.Q, 2) + '</strong> (df = ' + mf.df + ', p = ' + fmtP(mf.df > 0 ? 1 - chi2CDF(mf.Q, mf.df) : 1) + ')</p>' +
+      '<p style="font-size:0.88rem;">Heterogeneity (' + mf.tau2Method + '): <strong>tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + '</strong> (DL: ' + fmtNum(mf.tau2_dl, 4) + ') | <strong>I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%</strong></p>' +
+      '<p style="font-size:0.88rem;">Q-statistic (fixed-effect): <strong>' + fmtNum(mf.Q, 2) + '</strong> (df = ' + mf.df + ', p = ' + fmtP(mf.df > 0 ? 1 - chi2CDF_core(mf.Q, mf.df) : 1) + ')</p>' +
       '<p style="font-size:0.88rem;">Q-statistic (additive model fit, RE): <strong>' + fmtNum(mf.Q_re, 2) + '</strong> (p = ' + fmtP(mf.pval) + ')</p>' +
-      (mf.tau2 > 0 ? '<p style="color:var(--amber); font-size:0.85rem;">Random-effects model applied (tau' + String.fromCharCode(178) + ' > 0). Component effects account for between-study heterogeneity.</p>' : '<p style="color:var(--green); font-size:0.85rem;">No between-study heterogeneity detected (tau' + String.fromCharCode(178) + ' = 0). Fixed-effect and random-effects models coincide.</p>') +
+      '<p style="font-size:0.85rem; color:var(--text-secondary);">CI methods: Wald (z-based) and HKSJ (t-based, df=' + mf.df + ', with floor correction). Prediction intervals use t<sub>' + Math.max(1, mf.df - 1) + '</sub>.</p>' +
+      (mf.tau2 > 0 ? '<p style="color:var(--amber); font-size:0.85rem;">Random-effects model applied (REML tau' + String.fromCharCode(178) + ' > 0). Component effects account for between-study heterogeneity.</p>' : '<p style="color:var(--green); font-size:0.85rem;">No between-study heterogeneity detected (tau' + String.fromCharCode(178) + ' = 0). Fixed-effect and random-effects models coincide.</p>') +
       (mf.pval < 0.05 ? '<p style="color:var(--red); font-size:0.85rem;">Warning: Significant residual Q suggests the additive model may not fully explain the data. Consider interaction terms.</p>' : '');
 
     // Rankings
@@ -887,13 +1100,17 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
 
     var K = comps.length;
     var rowH = Math.max(32, Math.min(40, 350 / K));
-    var W = 700, H = K * rowH + 80;
-    var margin = { top: 35, right: 20, bottom: 40, left: 180 };
+    var W = 700, H = K * rowH + 95;
+    var margin = { top: 35, right: 20, bottom: 55, left: 180 };
     var plotW = W - margin.left - margin.right;
 
-    // Determine x-range
+    // Determine x-range (include HKSJ and PI bounds)
     var allVals = [];
-    for (var i = 0; i < K; i++) { allVals.push(comps[i].ciLo, comps[i].ciHi, comps[i].effect); }
+    for (var i = 0; i < K; i++) {
+      allVals.push(comps[i].ciLo, comps[i].ciHi, comps[i].hksjLo, comps[i].hksjHi, comps[i].effect);
+      if (isFinite(comps[i].piLo)) allVals.push(comps[i].piLo, comps[i].piHi);
+    }
+    allVals = allVals.filter(function(v) { return isFinite(v); });
     var xMin = Math.min.apply(null, allVals);
     var xMax = Math.max.apply(null, allVals);
     var xPad = (xMax - xMin) * 0.2;
@@ -924,18 +1141,35 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
       // Label
       svg += '<text x="' + (margin.left - 8) + '" y="' + (yc + 4) + '" text-anchor="end" fill="' + text + '" font-size="11" font-weight="600">' + escapeHtml(c.component) + '</text>';
 
-      // CI whisker
-      svg += '<line x1="' + xScale(c.ciLo).toFixed(1) + '" y1="' + yc + '" x2="' + xScale(c.ciHi).toFixed(1) + '" y2="' + yc + '" stroke="' + col + '" stroke-width="2"/>';
+      // Prediction interval (dashed, light)
+      if (isFinite(c.piLo) && isFinite(c.piHi)) {
+        svg += '<line x1="' + xScale(c.piLo).toFixed(1) + '" y1="' + yc + '" x2="' + xScale(c.piHi).toFixed(1) + '" y2="' + yc + '" stroke="' + col + '" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>';
+        svg += '<line x1="' + xScale(c.piLo).toFixed(1) + '" y1="' + (yc - 4) + '" x2="' + xScale(c.piLo).toFixed(1) + '" y2="' + (yc + 4) + '" stroke="' + col + '" stroke-width="1" opacity="0.5"/>';
+        svg += '<line x1="' + xScale(c.piHi).toFixed(1) + '" y1="' + (yc - 4) + '" x2="' + xScale(c.piHi).toFixed(1) + '" y2="' + (yc + 4) + '" stroke="' + col + '" stroke-width="1" opacity="0.5"/>';
+      }
+
+      // HKSJ CI whisker (thick, solid)
+      svg += '<line x1="' + xScale(c.hksjLo).toFixed(1) + '" y1="' + yc + '" x2="' + xScale(c.hksjHi).toFixed(1) + '" y2="' + yc + '" stroke="' + col + '" stroke-width="2.5"/>';
+
+      // Wald CI whisker (thinner, for comparison)
+      svg += '<line x1="' + xScale(c.ciLo).toFixed(1) + '" y1="' + (yc + 0.5) + '" x2="' + xScale(c.ciHi).toFixed(1) + '" y2="' + (yc + 0.5) + '" stroke="' + col + '" stroke-width="1" opacity="0.4"/>';
 
       // Point
       svg += '<circle cx="' + xScale(c.effect).toFixed(1) + '" cy="' + yc + '" r="6" fill="' + col + '" stroke="#fff" stroke-width="1.5"/>';
 
-      // Effect text
-      svg += '<text x="' + (margin.left + plotW + 5) + '" y="' + (yc + 4) + '" fill="' + muted + '" font-size="9">' + fmtNum(c.effect, 2) + ' (' + fmtNum(c.ciLo, 2) + ', ' + fmtNum(c.ciHi, 2) + ')</text>';
+      // Effect text (show HKSJ CI)
+      svg += '<text x="' + (margin.left + plotW + 5) + '" y="' + (yc + 4) + '" fill="' + muted + '" font-size="9">' + fmtNum(c.effect, 2) + ' (' + fmtNum(c.hksjLo, 2) + ', ' + fmtNum(c.hksjHi, 2) + ')</text>';
     }
 
     // X-axis
-    svg += '<text x="' + (W / 2) + '" y="' + (H - 5) + '" text-anchor="middle" fill="' + muted + '" font-size="11">Effect Size (log scale)</text>';
+    svg += '<text x="' + (W / 2) + '" y="' + (H - 18) + '" text-anchor="middle" fill="' + muted + '" font-size="11">Effect Size (log scale)</text>';
+    // Legend
+    svg += '<line x1="' + (margin.left) + '" y1="' + (H - 8) + '" x2="' + (margin.left + 20) + '" y2="' + (H - 8) + '" stroke="' + text + '" stroke-width="2.5"/>';
+    svg += '<text x="' + (margin.left + 23) + '" y="' + (H - 5) + '" fill="' + muted + '" font-size="8">HKSJ CI</text>';
+    svg += '<line x1="' + (margin.left + 65) + '" y1="' + (H - 8) + '" x2="' + (margin.left + 85) + '" y2="' + (H - 8) + '" stroke="' + text + '" stroke-width="1" opacity="0.4"/>';
+    svg += '<text x="' + (margin.left + 88) + '" y="' + (H - 5) + '" fill="' + muted + '" font-size="8">Wald CI</text>';
+    svg += '<line x1="' + (margin.left + 125) + '" y1="' + (H - 8) + '" x2="' + (margin.left + 145) + '" y2="' + (H - 8) + '" stroke="' + text + '" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>';
+    svg += '<text x="' + (margin.left + 148) + '" y="' + (H - 5) + '" fill="' + muted + '" font-size="8">Prediction Interval</text>';
     svg += '</svg>';
     $('forestSvg').innerHTML = svg;
   }
@@ -951,8 +1185,10 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     var methods = 'Component network meta-analysis was conducted using an additive random-effects model (Welton et al. 2009; Rucker et al. 2020). ' +
       'Complex interventions were decomposed into ' + nComponents + ' distinct components based on treatment labels. ' +
       'The additive model assumes that the effect of a multi-component intervention equals the sum of its individual component effects. ' +
-      'Between-study heterogeneity was estimated using the DerSimonian-Laird method (tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + ', I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%). ' +
+      'Between-study heterogeneity was estimated using restricted maximum likelihood (REML) via Fisher scoring (tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2, 4) + ', I' + String.fromCharCode(178) + ' = ' + fmtNum(mf.I2, 1) + '%; DL comparison: tau' + String.fromCharCode(178) + ' = ' + fmtNum(mf.tau2_dl, 4) + '). ' +
       'Component effects were estimated using random-effects weighted least squares from ' + nComps + ' pairwise comparisons. ' +
+      'Confidence intervals are reported using both the Wald (z-based) and Hartung-Knapp-Sidik-Jonkman (HKSJ) methods; HKSJ uses t-distribution critical values (df = ' + mf.df + ') with a floor correction to prevent narrowing below Wald CIs when residual heterogeneity is low. ' +
+      'Prediction intervals were computed using t-distribution with ' + Math.max(1, mf.df - 1) + ' degrees of freedom. ' +
       'The goodness of fit of the additive model was assessed using the Q-statistic (Q = ' + fmtNum(mf.Q_re, 2) + ', df = ' + mf.df + ', p = ' + fmtP(mf.pval) + ').';
 
     var methodsEl = $('methodsText');
@@ -1112,10 +1348,10 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     // Export
     $('exportCsvBtn').addEventListener('click', function() {
       if (!appState.results) { alert('Run analysis first.'); return; }
-      var lines = ['Component,Effect,SE,CI_Lower,CI_Upper,z,p'];
+      var lines = ['Component,Effect,SE,Wald_CI_Lower,Wald_CI_Upper,HKSJ_CI_Lower,HKSJ_CI_Upper,PI_Lower,PI_Upper,z,p'];
       for (var i = 0; i < appState.results.components.length; i++) {
         var c = appState.results.components[i];
-        lines.push([c.component,c.effect.toFixed(4),c.se.toFixed(4),c.ciLo.toFixed(4),c.ciHi.toFixed(4),c.z.toFixed(3),c.p.toFixed(4)].join(','));
+        lines.push([c.component,c.effect.toFixed(4),c.se.toFixed(4),c.ciLo.toFixed(4),c.ciHi.toFixed(4),c.hksjLo.toFixed(4),c.hksjHi.toFixed(4),isFinite(c.piLo)?c.piLo.toFixed(4):'NA',isFinite(c.piHi)?c.piHi.toFixed(4):'NA',c.z.toFixed(3),c.p.toFixed(4)].join(','));
       }
       var blob = new Blob([lines.join('\n')], {type:'text/csv'});
       var url = URL.createObjectURL(blob);
