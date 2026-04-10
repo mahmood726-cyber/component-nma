@@ -257,7 +257,7 @@ const D = {
   "primary_estimand": "Component effect estimates (log-OR/SMD)",
   "study_count": null,
   "participant_count": null,
-  "version": "1.2",
+  "version": "1.0",
   "date": "2026-03-26",
   "certainty": "",
   "app": "Component NMA v1.0",
@@ -266,12 +266,6 @@ const D = {
   "doi": "",
   "protocol": "",
   "source_article": "",
-  "notes": {
-    "app": "Component NMA v1.2",
-    "data": "Additive cNMA with WLS and interaction terms",
-    "code": "https://github.com/mahmood726-cyber/component-nma",
-    "dashboard": "https://mahmood726-cyber.github.io/component-nma/"
-  },
   "body": "How can researchers decompose multi-component interventions into individual active ingredients using network meta-analysis directly in the browser? Component NMA implements the additive component model using weighted least squares, constructing a binary design matrix mapping treatment comparisons to component contrasts against a no-active-component reference. The engine supports optional interaction terms for testing synergy or antagonism, with model fit assessed through Q-statistics, I-squared, and tau-squared estimates. Validation across 25 Selenium tests confirmed correct component decomposition, interaction estimation, 95% CI construction, and SMD ranking for a 24-trial smoking cessation dataset with four active components. Results are cross-validated against the R netmeta package, with component effect estimates and standard errors matching published implementations within numerical tolerance. This tool enables transparent decomposition of complex interventions, producing forest plots, network graphs, ranking tables, and equivalent R code for verification. The additive model assumes that components combine linearly; departures from additivity beyond pairwise interactions and inconsistency across component definitions warrant careful sensitivity analysis.",
   "validation": {
     "status": "pass",
@@ -469,7 +463,6 @@ const notes = D.notes || {};
 const noteFields = [
   ["Type", D.type], ["Primary Estimand", D.primary_estimand],
   ["App", notes.app], ["Data", notes.data], ["Code", notes.code],
-  ["Dashboard", notes.dashboard],
   ["DOI", notes.doi], ["Version", notes.version || D.version],
   ["Certainty", notes.certainty || D.certainty],
   ["Validation", notes.validation || (D.validation||{}).status]
