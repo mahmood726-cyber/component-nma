@@ -4,7 +4,9 @@ Component NMA — Selenium Test Suite
 Run: python test_component_nma.py
 """
 import sys, os, time, io, unittest
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+if __name__ == "__main__" and hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By

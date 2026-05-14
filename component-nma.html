@@ -199,7 +199,7 @@ textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); fo
     <div class="card-title">Model Options</div>
     <div style="display:flex; align-items:center; gap:0.75rem;">
       <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.88rem; color:var(--text-primary);">
-        <input type="checkbox" id="includeInteractions" style="width:auto; cursor:pointer;"> Include pairwise component interactions
+        <input type="checkbox" id="includeInteractions" aria-label="Include pairwise component interactions" style="width:auto; cursor:pointer;"> Include pairwise component interactions
       </label>
     </div>
     <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.4rem;">When enabled, the model adds interaction terms (Component_A x Component_B) to test whether combinations produce synergistic or antagonistic effects beyond the additive model. Requires sufficient data (k > p + number of interactions).</p>
